@@ -10,6 +10,7 @@ Drop a Python file into `agents/` — it's live. No registration, no restart, no
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-green?logo=fastapi)](https://fastapi.tiangolo.com)
 [![Telegram](https://img.shields.io/badge/python--telegram--bot-22%2B-blue?logo=telegram)](https://python-telegram-bot.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/m4tinbeigi-official/RickAgent?style=social)](https://github.com/m4tinbeigi-official/RickAgent)
 
 [فارسی 🇮🇷](#-راهنمای-فارسی) · [Quick Start](#-quick-start) · [Architecture](#-architecture) · [Adding Agents](#-adding-a-new-agent-30-seconds)
 
@@ -36,8 +37,8 @@ Drop a Python file into `agents/` — it's live. No registration, no restart, no
 
 **Option A — Smart installer (recommended)**
 ```bash
-git clone https://github.com/YOUR_USERNAME/AgentRick.git
-cd AgentRick
+git clone https://github.com/m4tinbeigi-official/RickAgent.git
+cd RickAgent
 python3 install.py
 ```
 The installer picks your AI provider, tests your API key live, configures Telegram, and writes `.env` automatically.
@@ -220,8 +221,8 @@ Contributions are welcome. The easiest way to contribute is to **add a new agent
 ## نصب سریع
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/AgentRick.git
-cd AgentRick
+git clone https://github.com/m4tinbeigi-official/RickAgent.git
+cd RickAgent
 python3 install.py
 ```
 
