@@ -9,9 +9,15 @@
     <meta property="og:description" content="Drop a Python file into agents/ — it's live. No registration, no restart, no config changes.">
     <meta property="og:url" content="https://m4tinbeigi-official.github.io/RickAgent">
     <meta property="og:type" content="website">
+
+    <!-- English font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Persian font (Vazirmatn) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+
     <style>
         :root {
             --bg: #0a0a0f;
@@ -33,11 +39,7 @@
             --gradient-3: linear-gradient(135deg, #ff6b9d, #ffa502);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -45,677 +47,313 @@
             color: var(--text);
             line-height: 1.7;
             overflow-x: hidden;
+            transition: font-family 0.2s;
         }
 
-        /* Animated background */
+        /* ── Persian mode ─────────────────────────────── */
+        html[lang="fa"] body {
+            font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
+        }
+        html[lang="fa"] .code-block,
+        html[lang="fa"] .terminal-body,
+        html[lang="fa"] .code-example-body,
+        html[lang="fa"] .commands-table tr td:first-child {
+            font-family: 'JetBrains Mono', monospace;
+            direction: ltr;
+            text-align: left;
+        }
+        html[lang="fa"] .hero-terminal { text-align: left; direction: ltr; }
+        html[lang="fa"] .terminal-body { direction: ltr; }
+        html[lang="fa"] .hero-badge { flex-direction: row-reverse; }
+
+        /* ── Background ─────────────────────────────── */
         .bg-grid {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-image:
-                linear-gradient(rgba(108, 92, 231, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(108, 92, 231, 0.03) 1px, transparent 1px);
+                linear-gradient(rgba(108,92,231,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(108,92,231,0.03) 1px, transparent 1px);
             background-size: 60px 60px;
             z-index: -1;
         }
-
         .bg-glow {
-            position: fixed;
-            width: 600px;
-            height: 600px;
-            border-radius: 50%;
-            filter: blur(150px);
-            opacity: 0.15;
-            z-index: -1;
+            position: fixed; width: 600px; height: 600px; border-radius: 50%;
+            filter: blur(150px); opacity: 0.15; z-index: -1;
             animation: float 20s ease-in-out infinite;
         }
-
-        .bg-glow-1 {
-            top: -200px;
-            right: -200px;
-            background: var(--accent);
-        }
-
-        .bg-glow-2 {
-            bottom: -200px;
-            left: -200px;
-            background: var(--green);
-            animation-delay: -10s;
-        }
+        .bg-glow-1 { top: -200px; right: -200px; background: var(--accent); }
+        .bg-glow-2 { bottom: -200px; left: -200px; background: var(--green); animation-delay: -10s; }
 
         @keyframes float {
-            0%, 100% { transform: translate(0, 0); }
-            50% { transform: translate(-50px, 50px); }
+            0%, 100% { transform: translate(0,0); }
+            50% { transform: translate(-50px,50px); }
         }
 
-        /* Navigation */
+        /* ── Navigation ─────────────────────────────── */
         nav {
-            position: fixed;
-            top: 0;
-            width: 100%;
-            padding: 16px 0;
-            background: rgba(10, 10, 15, 0.8);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            z-index: 100;
+            position: fixed; top: 0; width: 100%; padding: 16px 0;
+            background: rgba(10,10,15,0.85); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border); z-index: 100;
         }
-
-        nav .container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
+        nav .container { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
         .nav-logo {
-            font-size: 1.4rem;
-            font-weight: 800;
-            background: var(--gradient-1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-decoration: none;
+            font-size: 1.4rem; font-weight: 800;
+            background: var(--gradient-1); -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent; text-decoration: none; white-space: nowrap;
         }
-
-        .nav-links {
-            display: flex;
-            gap: 32px;
-            list-style: none;
-        }
-
+        .nav-links { display: flex; gap: 28px; list-style: none; align-items: center; flex-wrap: wrap; }
         .nav-links a {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: color 0.2s;
+            color: var(--text-muted); text-decoration: none;
+            font-size: 0.9rem; font-weight: 500; transition: color 0.2s;
         }
-
-        .nav-links a:hover {
-            color: var(--accent-light);
-        }
-
+        .nav-links a:hover { color: var(--accent-light); }
         .nav-cta {
-            background: var(--gradient-1);
-            color: white !important;
-            padding: 8px 20px;
-            border-radius: 8px;
-            font-weight: 600;
+            background: var(--gradient-1); color: white !important;
+            padding: 8px 20px; border-radius: 8px; font-weight: 600;
         }
+        .nav-cta:hover { opacity: 0.9; }
 
-        .nav-cta:hover {
-            opacity: 0.9;
+        /* Language switcher */
+        .lang-switcher {
+            display: flex; align-items: center; gap: 0;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 8px; overflow: hidden; flex-shrink: 0;
         }
+        .lang-btn {
+            padding: 6px 12px; font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; border: none; background: transparent;
+            color: var(--text-muted); transition: all 0.2s;
+        }
+        .lang-btn.active {
+            background: var(--gradient-1); color: white;
+        }
+        .lang-btn:hover:not(.active) { color: var(--text); }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
+        /* ── Layout ─────────────────────────────── */
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 
-        /* Hero */
-        .hero {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            padding-top: 80px;
-        }
-
-        .hero-content {
-            text-align: center;
-            max-width: 900px;
-            margin: 0 auto;
-        }
+        /* ── Hero ─────────────────────────────── */
+        .hero { min-height: 100vh; display: flex; align-items: center; padding-top: 80px; }
+        .hero-content { text-align: center; max-width: 900px; margin: 0 auto; }
 
         .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(108, 92, 231, 0.1);
-            border: 1px solid rgba(108, 92, 231, 0.3);
-            padding: 6px 16px;
-            border-radius: 100px;
-            font-size: 0.85rem;
-            color: var(--accent-light);
-            margin-bottom: 32px;
-            font-weight: 500;
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(108,92,231,0.1); border: 1px solid rgba(108,92,231,0.3);
+            padding: 6px 16px; border-radius: 100px;
+            font-size: 0.85rem; color: var(--accent-light); margin-bottom: 32px; font-weight: 500;
         }
-
         .hero-badge .dot {
-            width: 8px;
-            height: 8px;
-            background: var(--green);
-            border-radius: 50%;
-            animation: pulse 2s ease-in-out infinite;
+            width: 8px; height: 8px; background: var(--green);
+            border-radius: 50%; animation: pulse 2s ease-in-out infinite; flex-shrink: 0;
         }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
         .hero h1 {
-            font-size: clamp(2.5rem, 6vw, 4.5rem);
-            font-weight: 900;
-            line-height: 1.1;
-            margin-bottom: 24px;
-            letter-spacing: -0.02em;
+            font-size: clamp(2.5rem, 6vw, 4.5rem); font-weight: 900;
+            line-height: 1.15; margin-bottom: 24px; letter-spacing: -0.02em;
         }
+        html[lang="fa"] .hero h1 { letter-spacing: 0; }
 
         .hero h1 .gradient-text {
-            background: var(--gradient-1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-
         .hero p {
-            font-size: 1.25rem;
-            color: var(--text-muted);
-            max-width: 650px;
-            margin: 0 auto 40px;
-            line-height: 1.8;
+            font-size: 1.2rem; color: var(--text-muted);
+            max-width: 650px; margin: 0 auto 40px; line-height: 1.85;
         }
-
-        .hero-buttons {
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
+        .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 
         .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s;
-            cursor: pointer;
-            border: none;
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 28px; border-radius: 12px; font-size: 1rem;
+            font-weight: 600; text-decoration: none; transition: all 0.3s; cursor: pointer; border: none;
         }
-
         .btn-primary {
-            background: var(--gradient-1);
-            color: white;
-            box-shadow: 0 4px 20px rgba(108, 92, 231, 0.4);
+            background: var(--gradient-1); color: white;
+            box-shadow: 0 4px 20px rgba(108,92,231,0.4);
         }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 30px rgba(108, 92, 231, 0.5);
-        }
-
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 30px rgba(108,92,231,0.5); }
         .btn-secondary {
-            background: var(--bg-card);
-            color: var(--text);
-            border: 1px solid var(--border);
+            background: var(--bg-card); color: var(--text); border: 1px solid var(--border);
         }
+        .btn-secondary:hover { background: var(--bg-card-hover); border-color: var(--accent); transform: translateY(-2px); }
 
-        .btn-secondary:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--accent);
-            transform: translateY(-2px);
-        }
-
+        /* Terminal */
         .hero-terminal {
-            margin-top: 60px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            overflow: hidden;
-            max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
-            text-align: left;
+            margin: 60px auto 0; background: var(--bg-card);
+            border: 1px solid var(--border); border-radius: 16px;
+            overflow: hidden; max-width: 700px;
         }
-
         .terminal-header {
-            display: flex;
-            gap: 8px;
-            padding: 12px 16px;
-            background: rgba(0,0,0,0.3);
-            border-bottom: 1px solid var(--border);
+            display: flex; gap: 8px; padding: 12px 16px;
+            background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border);
         }
-
-        .terminal-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-        }
-
+        .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
         .terminal-dot.red { background: var(--red); }
         .terminal-dot.yellow { background: var(--yellow); }
         .terminal-dot.green { background: var(--green); }
-
         .terminal-body {
-            padding: 20px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
-            line-height: 1.8;
+            padding: 20px; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.88rem; line-height: 1.8; text-align: left;
         }
-
         .terminal-body .comment { color: var(--text-muted); }
         .terminal-body .cmd { color: var(--green); }
         .terminal-body .output { color: var(--accent-light); }
 
-        /* Sections */
-        section {
-            padding: 100px 0;
-        }
-
-        .section-header {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-
+        /* ── Sections ─────────────────────────────── */
+        section { padding: 100px 0; }
+        .section-header { text-align: center; margin-bottom: 60px; }
         .section-header .tag {
-            display: inline-block;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--accent-light);
-            margin-bottom: 16px;
+            display: inline-block; font-size: 0.8rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--accent-light); margin-bottom: 16px;
         }
+        html[lang="fa"] .section-header .tag { letter-spacing: 0; text-transform: none; }
+        .section-header h2 { font-size: clamp(2rem,4vw,3rem); font-weight: 800; letter-spacing: -0.02em; }
+        html[lang="fa"] .section-header h2 { letter-spacing: 0; }
+        .section-header p { color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 16px auto 0; }
 
-        .section-header h2 {
-            font-size: clamp(2rem, 4vw, 3rem);
-            font-weight: 800;
-            letter-spacing: -0.02em;
-        }
-
-        .section-header p {
-            color: var(--text-muted);
-            font-size: 1.1rem;
-            max-width: 600px;
-            margin: 16px auto 0;
-        }
-
-        /* Features Grid */
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 24px;
-        }
-
+        /* ── Features Grid ─────────────────────────────── */
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap: 24px; }
         .feature-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 32px;
-            transition: all 0.3s;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 32px; transition: all 0.3s;
         }
-
-        .feature-card:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--accent);
-            transform: translateY(-4px);
-        }
-
+        .feature-card:hover { background: var(--bg-card-hover); border-color: var(--accent); transform: translateY(-4px); }
         .feature-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            margin-bottom: 20px;
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; margin-bottom: 20px;
         }
+        .feature-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 12px; }
+        .feature-card p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.7; }
 
-        .feature-card h3 {
-            font-size: 1.2rem;
-            font-weight: 700;
-            margin-bottom: 12px;
-        }
-
-        .feature-card p {
-            color: var(--text-muted);
-            font-size: 0.95rem;
-            line-height: 1.7;
-        }
-
-        /* Architecture */
-        .arch-wrapper {
-            display: flex;
-            flex-direction: column;
-            gap: 40px;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .arch-flow {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
+        /* ── Architecture ─────────────────────────────── */
+        .arch-wrapper { display: flex; flex-direction: column; gap: 40px; max-width: 800px; margin: 0 auto; }
+        .arch-flow { display: flex; flex-direction: column; gap: 16px; }
         .arch-step {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px 24px;
-            transition: all 0.3s;
+            display: flex; align-items: center; gap: 20px;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 20px 24px; transition: all 0.3s;
         }
-
-        .arch-step:hover {
-            border-color: var(--accent);
-            background: var(--bg-card-hover);
-        }
-
+        .arch-step:hover { border-color: var(--accent); background: var(--bg-card-hover); }
         .arch-step-num {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: var(--gradient-1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.9rem;
-            flex-shrink: 0;
+            width: 40px; height: 40px; border-radius: 10px;
+            background: var(--gradient-1); display: flex; align-items: center;
+            justify-content: center; font-weight: 800; font-size: 0.9rem; flex-shrink: 0;
         }
+        .arch-step h4 { font-size: 1.05rem; font-weight: 600; }
+        .arch-step p { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+        .arch-arrow { text-align: center; color: var(--text-muted); font-size: 1.2rem; }
 
-        .arch-step h4 {
-            font-size: 1.05rem;
-            font-weight: 600;
-        }
-
-        .arch-step p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            margin-top: 4px;
-        }
-
-        .arch-arrow {
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 1.2rem;
-        }
-
-        /* Agents Showcase */
-        .agents-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
-        }
-
+        /* ── Agents ─────────────────────────────── */
+        .agents-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 20px; }
         .agent-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 28px;
-            text-align: center;
-            transition: all 0.3s;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 28px; text-align: center; transition: all 0.3s;
+        }
+        .agent-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 8px 30px rgba(108,92,231,0.15); }
+        .agent-emoji { font-size: 2.5rem; margin-bottom: 16px; }
+        .agent-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+        .agent-card p { color: var(--text-muted); font-size: 0.9rem; }
+        .tag-chip {
+            display: inline-block; margin-top: 12px; padding: 4px 12px;
+            background: rgba(108,92,231,0.1); border: 1px solid rgba(108,92,231,0.2);
+            border-radius: 100px; font-size: 0.75rem; color: var(--accent-light); font-weight: 500;
         }
 
-        .agent-card:hover {
-            border-color: var(--accent);
-            transform: translateY(-4px);
-            box-shadow: 0 8px 30px rgba(108, 92, 231, 0.15);
-        }
-
-        .agent-emoji {
-            font-size: 2.5rem;
-            margin-bottom: 16px;
-        }
-
-        .agent-card h3 {
-            font-size: 1.15rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .agent-card p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .agent-card .tag-chip {
-            display: inline-block;
-            margin-top: 12px;
-            padding: 4px 12px;
-            background: rgba(108, 92, 231, 0.1);
-            border: 1px solid rgba(108, 92, 231, 0.2);
-            border-radius: 100px;
-            font-size: 0.75rem;
-            color: var(--accent-light);
-            font-weight: 500;
-        }
-
-        /* Providers */
-        .providers-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-        }
-
+        /* ── Providers ─────────────────────────────── */
+        .providers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr)); gap: 16px; }
         .provider-chip {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: all 0.3s;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 20px; text-align: center;
+            font-weight: 600; font-size: 0.95rem; transition: all 0.3s;
         }
+        .provider-chip:hover { border-color: var(--accent); background: var(--bg-card-hover); }
+        .provider-chip .icon { font-size: 1.5rem; margin-bottom: 8px; }
 
-        .provider-chip:hover {
-            border-color: var(--accent);
-            background: var(--bg-card-hover);
-        }
-
-        .provider-chip .icon {
-            font-size: 1.5rem;
-            margin-bottom: 8px;
-        }
-
-        /* Quick Start */
-        .quickstart-steps {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            max-width: 700px;
-            margin: 0 auto;
-        }
-
-        .qs-step {
-            display: flex;
-            gap: 20px;
-            align-items: flex-start;
-        }
-
+        /* ── Quick Start ─────────────────────────────── */
+        .quickstart-steps { display: flex; flex-direction: column; gap: 24px; max-width: 700px; margin: 0 auto; }
+        .qs-step { display: flex; gap: 20px; align-items: flex-start; }
         .qs-num {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: var(--gradient-1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.85rem;
-            flex-shrink: 0;
+            width: 36px; height: 36px; border-radius: 50%;
+            background: var(--gradient-1); display: flex; align-items: center;
+            justify-content: center; font-weight: 800; font-size: 0.85rem; flex-shrink: 0;
         }
-
-        .qs-content h4 {
-            font-size: 1.05rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
+        .qs-content h4 { font-size: 1.05rem; font-weight: 600; margin-bottom: 8px; }
         .code-block {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px 18px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            color: var(--green);
-            overflow-x: auto;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px 18px;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+            color: var(--green); overflow-x: auto; direction: ltr; text-align: left;
         }
-
         .code-block .comment-code { color: var(--text-muted); }
 
-        /* Code Example */
+        /* ── Code Example ─────────────────────────────── */
         .code-example {
-            max-width: 700px;
-            margin: 40px auto 0;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            overflow: hidden;
+            max-width: 700px; margin: 40px auto 0;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
         }
-
         .code-example-header {
-            padding: 12px 20px;
-            background: rgba(0,0,0,0.3);
+            padding: 12px 20px; background: rgba(0,0,0,0.3);
             border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 0.85rem;
-            color: var(--text-muted);
+            display: flex; align-items: center; gap: 12px;
+            font-size: 0.85rem; color: var(--text-muted); direction: ltr;
         }
-
         .code-example-body {
-            padding: 24px;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            line-height: 1.8;
-            overflow-x: auto;
+            padding: 24px; font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem; line-height: 1.8; overflow-x: auto;
+            direction: ltr; text-align: left;
         }
-
         .code-example-body .keyword { color: var(--pink); }
         .code-example-body .class-name { color: var(--yellow); }
         .code-example-body .string { color: var(--green); }
         .code-example-body .attr { color: var(--blue); }
         .code-example-body .comment-c { color: var(--text-muted); }
 
-        /* Stats */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 24px;
-            margin-bottom: 60px;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 28px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 900;
-            background: var(--gradient-1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .stat-label {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            margin-top: 4px;
-        }
-
-        /* Commands Table */
+        /* ── Commands Table ─────────────────────────────── */
         .commands-table {
-            width: 100%;
-            max-width: 700px;
-            margin: 0 auto;
-            border-collapse: separate;
-            border-spacing: 0 8px;
+            width: 100%; max-width: 700px; margin: 0 auto;
+            border-collapse: separate; border-spacing: 0 8px;
         }
-
-        .commands-table td {
-            padding: 14px 20px;
-            background: var(--bg-card);
-        }
-
+        .commands-table td { padding: 14px 20px; background: var(--bg-card); }
         .commands-table tr td:first-child {
             border-radius: 10px 0 0 10px;
-            border-left: 1px solid var(--border);
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
-            color: var(--green);
-            font-weight: 500;
-            white-space: nowrap;
+            border-left: 1px solid var(--border); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;
+            color: var(--green); font-weight: 500; white-space: nowrap; direction: ltr;
         }
-
+        html[lang="fa"] .commands-table tr td:first-child { border-radius: 0 10px 10px 0; border-right: 1px solid var(--border); border-left: none; }
+        html[lang="fa"] .commands-table tr td:last-child { border-radius: 10px 0 0 10px; border-left: 1px solid var(--border); border-right: none; }
         .commands-table tr td:last-child {
             border-radius: 0 10px 10px 0;
-            border-right: 1px solid var(--border);
-            border-top: 1px solid var(--border);
-            border-bottom: 1px solid var(--border);
-            color: var(--text-muted);
-            font-size: 0.9rem;
+            border-right: 1px solid var(--border); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+            color: var(--text-muted); font-size: 0.9rem;
         }
 
-        /* Footer */
-        footer {
-            padding: 60px 0;
-            border-top: 1px solid var(--border);
-            text-align: center;
-        }
+        /* ── Footer ─────────────────────────────── */
+        footer { padding: 60px 0; border-top: 1px solid var(--border); text-align: center; }
+        footer p { color: var(--text-muted); font-size: 0.9rem; }
+        footer a { color: var(--accent-light); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+        .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
 
-        footer p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
+        /* ── Divider ─────────────────────────────── */
+        .divider { width: 100%; height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); }
 
-        footer a {
-            color: var(--accent-light);
-            text-decoration: none;
-        }
-
-        footer a:hover {
-            text-decoration: underline;
-        }
-
-        .footer-links {
-            display: flex;
-            justify-content: center;
-            gap: 24px;
-            margin-bottom: 20px;
-        }
-
-        /* Responsive */
+        /* ── Responsive ─────────────────────────────── */
         @media (max-width: 768px) {
             .nav-links { display: none; }
             .hero h1 { font-size: 2.2rem; }
             .features-grid { grid-template-columns: 1fr; }
-            .agents-grid { grid-template-columns: repeat(2, 1fr); }
-            .providers-grid { grid-template-columns: repeat(2, 1fr); }
+            .agents-grid { grid-template-columns: repeat(2,1fr); }
+            .providers-grid { grid-template-columns: repeat(2,1fr); }
         }
-
         @media (max-width: 480px) {
             .agents-grid { grid-template-columns: 1fr; }
+            .providers-grid { grid-template-columns: repeat(2,1fr); }
         }
 
-        /* Smooth scroll */
-        html {
-            scroll-behavior: smooth;
-        }
-
-        /* Section divider */
-        .divider {
-            width: 100%;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--border), transparent);
-        }
+        html { scroll-behavior: smooth; }
     </style>
 </head>
 <body>
@@ -728,12 +366,17 @@
         <div class="container">
             <a href="#" class="nav-logo">🤖 RickAgent</a>
             <ul class="nav-links">
-                <li><a href="#features">Features</a></li>
-                <li><a href="#architecture">Architecture</a></li>
-                <li><a href="#agents">Agents</a></li>
-                <li><a href="#quickstart">Quick Start</a></li>
+                <li><a href="#features" data-en="Features" data-fa="امکانات">Features</a></li>
+                <li><a href="#architecture" data-en="Architecture" data-fa="معماری">Architecture</a></li>
+                <li><a href="#agents" data-en="Agents" data-fa="ایجنت‌ها">Agents</a></li>
+                <li><a href="#quickstart" data-en="Quick Start" data-fa="شروع سریع">Quick Start</a></li>
                 <li><a href="https://github.com/m4tinbeigi-official/RickAgent" class="nav-cta">GitHub ⭐</a></li>
             </ul>
+            <!-- Language switcher -->
+            <div class="lang-switcher">
+                <button class="lang-btn active" id="btn-en" onclick="setLang('en')">EN</button>
+                <button class="lang-btn" id="btn-fa" onclick="setLang('fa')">فا</button>
+            </div>
         </div>
     </nav>
 
@@ -743,18 +386,23 @@
             <div class="hero-content">
                 <div class="hero-badge">
                     <span class="dot"></span>
-                    Powered by LangGraph
+                    <span data-en="Powered by LangGraph" data-fa="مبتنی بر LangGraph">Powered by LangGraph</span>
                 </div>
                 <h1>
-                    The AI Agent Team<br>
-                    <span class="gradient-text">That Runs Itself</span>
+                    <span data-en="The AI Agent Team<br><span class='gradient-text'>That Runs Itself</span>"
+                          data-fa="تیم ایجنت‌های هوش مصنوعی<br><span class='gradient-text'>که خودشان کار می‌کنند</span>">
+                        The AI Agent Team<br><span class="gradient-text">That Runs Itself</span>
+                    </span>
                 </h1>
-                <p>
+                <p data-en="A production-ready multi-agent AI system for Telegram. Drop a Python file into <code>agents/</code> — it's live. No registration, no restart, no config changes."
+                   data-fa="یک سیستم هوش مصنوعی چندعاملی آماده برای تلگرام. فقط یک فایل Python در پوشه <code>agents/</code> بگذارید — بلافاصله فعال می‌شود. بدون ثبت‌نام، بدون ری‌استارت، بدون تغییر کانفیگ.">
                     A production-ready multi-agent AI system for Telegram. Drop a Python file into <code>agents/</code> — it's live. No registration, no restart, no config changes.
                 </p>
                 <div class="hero-buttons">
-                    <a href="#quickstart" class="btn btn-primary">🚀 Get Started</a>
-                    <a href="https://github.com/m4tinbeigi-official/RickAgent" class="btn btn-secondary">📦 View on GitHub</a>
+                    <a href="#quickstart" class="btn btn-primary"
+                       data-en="🚀 Get Started" data-fa="🚀 شروع کنید">🚀 Get Started</a>
+                    <a href="https://github.com/m4tinbeigi-official/RickAgent" class="btn btn-secondary"
+                       data-en="📦 View on GitHub" data-fa="📦 مشاهده در GitHub">📦 View on GitHub</a>
                 </div>
 
                 <div class="hero-terminal">
@@ -764,13 +412,13 @@
                         <span class="terminal-dot green"></span>
                     </div>
                     <div class="terminal-body">
-                        <span class="comment"># Clone & run — that's it</span><br>
+                        <span class="comment"># Clone &amp; run — that's it</span><br>
                         <span class="cmd">$ git clone https://github.com/m4tinbeigi-official/RickAgent.git</span><br>
-                        <span class="cmd">$ cd RickAgent</span><br>
-                        <span class="cmd">$ python3 install.py</span><br><br>
-                        <span class="output">✓ AI provider configured</span><br>
-                        <span class="output">✓ Telegram bot connected</span><br>
-                        <span class="output">✓ 6 agents loaded — ready!</span>
+                        <span class="cmd">$ cd RickAgent &amp;&amp; pip install -r requirements.txt</span><br>
+                        <span class="cmd">$ python3 main.py</span><br><br>
+                        <span class="output">✓ Admin DB initialized</span><br>
+                        <span class="output">✓ 4 bots loaded from panel</span><br>
+                        <span class="output">✓ 6 agents ready — polling started!</span>
                     </div>
                 </div>
             </div>
@@ -783,58 +431,85 @@
     <section id="features">
         <div class="container">
             <div class="section-header">
-                <span class="tag">Features</span>
-                <h2>Why RickAgent?</h2>
-                <p>Everything you need to run a multi-agent AI system on Telegram, out of the box.</p>
+                <span class="tag" data-en="Features" data-fa="امکانات">Features</span>
+                <h2 data-en="Why RickAgent?" data-fa="چرا RickAgent؟">Why RickAgent?</h2>
+                <p data-en="Everything you need to run a multi-agent AI system on Telegram, out of the box."
+                   data-fa="همه چیزی که برای اجرای یک سیستم هوش مصنوعی چندعاملی روی تلگرام نیاز دارید، آماده و from-the-box.">
+                    Everything you need to run a multi-agent AI system on Telegram, out of the box.
+                </p>
             </div>
 
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(0, 210, 211, 0.1);">⚡</div>
-                    <h3>Zero-Registration Agents</h3>
-                    <p>Drop a <code>.py</code> file into <code>agents/</code> — auto-discovered on next run. No registry, no config file, no restart needed.</p>
+                    <div class="feature-icon" style="background: rgba(0,210,211,0.1);">⚡</div>
+                    <h3 data-en="Zero-Registration Agents" data-fa="ایجنت‌های بدون ثبت‌نام">Zero-Registration Agents</h3>
+                    <p data-en="Drop a <code>.py</code> file into <code>agents/</code> — auto-discovered on next run. No registry, no config file, no restart needed."
+                       data-fa="یک فایل <code>.py</code> در <code>agents/</code> بگذارید — در اجرای بعدی به‌طور خودکار شناسایی می‌شود. بدون رجیستری، بدون فایل کانفیگ، بدون ری‌استارت.">
+                        Drop a <code>.py</code> file into <code>agents/</code> — auto-discovered on next run. No registry, no config file, no restart needed.
+                    </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(108, 92, 231, 0.1);">🧠</div>
-                    <h3>LangGraph Orchestration</h3>
-                    <p>Supervisor agent analyzes each request and picks the best team of specialist agents to handle it. Multi-agent routing, not single-agent guessing.</p>
+                    <div class="feature-icon" style="background: rgba(108,92,231,0.1);">🧠</div>
+                    <h3 data-en="LangGraph Orchestration" data-fa="هماهنگی با LangGraph">LangGraph Orchestration</h3>
+                    <p data-en="Supervisor agent analyzes each request and picks the best team of specialist agents. Multi-agent routing, not single-agent guessing."
+                       data-fa="ایجنت ناظر هر درخواست را تحلیل می‌کند و بهترین تیم ایجنت‌های متخصص را انتخاب می‌کند. مسیریابی چندعاملی واقعی.">
+                        Supervisor agent analyzes each request and picks the best team of specialist agents. Multi-agent routing, not single-agent guessing.
+                    </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(255, 165, 2, 0.1);">🔌</div>
-                    <h3>Any OpenAI-Compatible API</h3>
-                    <p>Bynara, OpenAI, Groq, Together, Anthropic, OpenRouter, Google Gemini, or any custom endpoint. Switch providers at runtime with <code>/setprovider</code>.</p>
+                    <div class="feature-icon" style="background: rgba(255,165,2,0.1);">🔌</div>
+                    <h3 data-en="Any OpenAI-Compatible API" data-fa="هر API سازگار با OpenAI">Any OpenAI-Compatible API</h3>
+                    <p data-en="Bynara, OpenAI, Groq, Together, Anthropic, OpenRouter, Google Gemini, or any custom endpoint. Switch providers at runtime."
+                       data-fa="Bynara، OpenAI، Groq، Together، Anthropic، OpenRouter، Google Gemini، یا هر endpoint سفارشی. تغییر در حین اجرا، بدون ری‌استارت.">
+                        Bynara, OpenAI, Groq, Together, Anthropic, OpenRouter, Google Gemini, or any custom endpoint. Switch providers at runtime.
+                    </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(255, 107, 157, 0.1);">🌐</div>
-                    <h3>Persian Web Panel</h3>
-                    <p>RTL dashboard with Vazirmatn font, live SSE activity feed, agent configuration, provider management, and conversation history.</p>
+                    <div class="feature-icon" style="background: rgba(255,107,157,0.1);">🌐</div>
+                    <h3 data-en="Bilingual Web Panel" data-fa="پنل وب دوزبانه">Bilingual Web Panel</h3>
+                    <p data-en="Full RTL Persian dashboard with Vazirmatn font, live SSE activity feed, per-agent config, provider management, and conversation history."
+                       data-fa="داشبورد فارسی RTL با فونت وزیرمتن، فید فعالیت زنده SSE، تنظیمات per-agent، مدیریت ارائه‌دهنده، و تاریخچه مکالمات.">
+                        Full RTL Persian dashboard with Vazirmatn font, live SSE activity feed, per-agent config, provider management, and conversation history.
+                    </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(254, 202, 87, 0.1);">🛡️</div>
-                    <h3>Smart Rate Limiting</h3>
-                    <p>Detects 429 errors, tells users exactly when limits reset. Per-chat cooldowns with configurable intervals.</p>
+                    <div class="feature-icon" style="background: rgba(0,210,211,0.1);">💬</div>
+                    <h3 data-en="Group Collaboration Mode" data-fa="حالت همکاری گروهی">Group Collaboration Mode</h3>
+                    <p data-en="Bots collaborate in Telegram groups via cascading replies. Mention a specific bot to route directly, or let all bots collaborate in turn-order."
+                       data-fa="ربات‌ها در گروه‌های تلگرام از طریق ریپلای‌های زنجیره‌ای همکاری می‌کنند. یک ربات خاص را منشن کنید یا بگذارید همه با ترتیب نوبت همکاری کنند.">
+                        Bots collaborate in Telegram groups via cascading replies. Mention a specific bot to route directly, or let all bots collaborate in turn-order.
+                    </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(84, 160, 255, 0.1);">📊</div>
-                    <h3>Token Usage Tracking</h3>
-                    <p>Per-agent input/output token counts, run statistics, uptime tracking — all accessible via commands and the web panel.</p>
+                    <div class="feature-icon" style="background: rgba(254,202,87,0.1);">🛡️</div>
+                    <h3 data-en="Smart Rate Limiting" data-fa="محدودیت نرخ هوشمند">Smart Rate Limiting</h3>
+                    <p data-en="Detects 429 errors, tells users exactly when limits reset. Per-chat cooldowns with configurable intervals."
+                       data-fa="خطاهای 429 را شناسایی می‌کند، به کاربران می‌گوید دقیقاً چه زمانی محدودیت برداشته می‌شود. کول‌داون per-chat با بازه قابل تنظیم.">
+                        Detects 429 errors, tells users exactly when limits reset. Per-chat cooldowns with configurable intervals.
+                    </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(162, 155, 254, 0.1);">🔧</div>
-                    <h3>Dynamic Configuration</h3>
-                    <p>Override System Prompt, temperature, and model per-agent from the admin panel. No code change needed — hot reload applies instantly.</p>
+                    <div class="feature-icon" style="background: rgba(162,155,254,0.1);">🔧</div>
+                    <h3 data-en="DB-First Configuration" data-fa="تنظیمات DB-اول">DB-First Configuration</h3>
+                    <p data-en="Zero secrets in <code>.env</code>. All API keys, tokens, and agent configs live in the admin DB — managed entirely from the web panel."
+                       data-fa="بدون secret در <code>.env</code>. همه کلیدهای API، توکن‌ها و تنظیمات ایجنت در admin DB زندگی می‌کنند — کاملاً از پنل وب مدیریت می‌شوند.">
+                        Zero secrets in <code>.env</code>. All API keys, tokens, and agent configs live in the admin DB — managed entirely from the web panel.
+                    </p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon" style="background: rgba(0, 210, 211, 0.1);">🐍</div>
-                    <h3>Python 3.9+</h3>
-                    <p>No bleeding-edge syntax required. Works on almost any server, any OS. Simple <code>pip install</code> setup.</p>
+                    <div class="feature-icon" style="background: rgba(84,160,255,0.1);">🐍</div>
+                    <h3 data-en="Python 3.9+ Compatible" data-fa="سازگار با Python 3.9+">Python 3.9+ Compatible</h3>
+                    <p data-en="No bleeding-edge syntax required. Works on almost any server, any OS. Simple <code>pip install</code> setup."
+                       data-fa="نیازی به syntax پیشرفته ندارد. روی تقریباً هر سرور و هر سیستم‌عاملی کار می‌کند. نصب آسان با <code>pip install</code>.">
+                        No bleeding-edge syntax required. Works on almost any server, any OS. Simple <code>pip install</code> setup.
+                    </p>
                 </div>
             </div>
         </div>
@@ -846,9 +521,12 @@
     <section id="architecture">
         <div class="container">
             <div class="section-header">
-                <span class="tag">Architecture</span>
-                <h2>How It Works</h2>
-                <p>Each message goes through intelligent routing to the best team of agents.</p>
+                <span class="tag" data-en="Architecture" data-fa="معماری">Architecture</span>
+                <h2 data-en="How It Works" data-fa="چطور کار می‌کند">How It Works</h2>
+                <p data-en="Each message goes through intelligent routing to the best team of agents."
+                   data-fa="هر پیام از طریق مسیریابی هوشمند به بهترین تیم ایجنت‌ها هدایت می‌شود.">
+                    Each message goes through intelligent routing to the best team of agents.
+                </p>
             </div>
 
             <div class="arch-wrapper">
@@ -856,8 +534,11 @@
                     <div class="arch-step">
                         <div class="arch-step-num">1</div>
                         <div>
-                            <h4>💬 User Message</h4>
-                            <p>User sends a message to the Telegram bot</p>
+                            <h4 data-en="💬 User Message" data-fa="💬 پیام کاربر">💬 User Message</h4>
+                            <p data-en="User sends a message to the Telegram bot (private chat or group)"
+                               data-fa="کاربر پیامی به ربات تلگرام می‌فرستد (چت خصوصی یا گروه)">
+                                User sends a message to the Telegram bot (private chat or group)
+                            </p>
                         </div>
                     </div>
                     <div class="arch-arrow">↓</div>
@@ -865,8 +546,11 @@
                     <div class="arch-step">
                         <div class="arch-step-num">2</div>
                         <div>
-                            <h4>🧠 Supervisor Analyzes</h4>
-                            <p>LangGraph StateGraph routes the message to the optimal combination of specialist agents</p>
+                            <h4 data-en="🧠 Supervisor Analyzes" data-fa="🧠 ناظر تحلیل می‌کند">🧠 Supervisor Analyzes</h4>
+                            <p data-en="LangGraph StateGraph routes the message to the optimal combination of specialist agents"
+                               data-fa="LangGraph StateGraph پیام را به بهینه‌ترین ترکیب ایجنت‌های متخصص هدایت می‌کند">
+                                LangGraph StateGraph routes the message to the optimal combination of specialist agents
+                            </p>
                         </div>
                     </div>
                     <div class="arch-arrow">↓</div>
@@ -874,8 +558,11 @@
                     <div class="arch-step">
                         <div class="arch-step-num">3</div>
                         <div>
-                            <h4>🤖 Agent Team Executes</h4>
-                            <p>Writer, Analyst, Researcher, Planner, and Critic work in parallel or sequence as needed</p>
+                            <h4 data-en="🤖 Agent Team Executes" data-fa="🤖 تیم ایجنت اجرا می‌کند">🤖 Agent Team Executes</h4>
+                            <p data-en="Writer, Analyst, Researcher, Planner, and Critic work in parallel or sequence as needed"
+                               data-fa="نویسنده، تحلیلگر، محقق، برنامه‌ریز و منتقد به‌صورت موازی یا ترتیبی کار می‌کنند">
+                                Writer, Analyst, Researcher, Planner, and Critic work in parallel or sequence as needed
+                            </p>
                         </div>
                     </div>
                     <div class="arch-arrow">↓</div>
@@ -883,8 +570,11 @@
                     <div class="arch-step">
                         <div class="arch-step-num">4</div>
                         <div>
-                            <h4>✨ Supervisor Synthesizes</h4>
-                            <p>All agent outputs are combined into a single, coherent response</p>
+                            <h4 data-en="✨ Supervisor Synthesizes" data-fa="✨ ناظر ترکیب می‌کند">✨ Supervisor Synthesizes</h4>
+                            <p data-en="All agent outputs are combined into a single, coherent response"
+                               data-fa="تمام خروجی‌های ایجنت‌ها در یک پاسخ منسجم و یکپارچه ترکیب می‌شوند">
+                                All agent outputs are combined into a single, coherent response
+                            </p>
                         </div>
                     </div>
                     <div class="arch-arrow">↓</div>
@@ -892,8 +582,11 @@
                     <div class="arch-step">
                         <div class="arch-step-num">5</div>
                         <div>
-                            <h4>📤 Response Delivered</h4>
-                            <p>Final response sent back to the user in Telegram</p>
+                            <h4 data-en="📤 Response Delivered" data-fa="📤 پاسخ تحویل داده می‌شود">📤 Response Delivered</h4>
+                            <p data-en="Final response sent back to the user in Telegram"
+                               data-fa="پاسخ نهایی به کاربر در تلگرام ارسال می‌شود">
+                                Final response sent back to the user in Telegram
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -907,69 +600,77 @@
     <section id="agents">
         <div class="container">
             <div class="section-header">
-                <span class="tag">Agents</span>
-                <h2>Meet The Team</h2>
-                <p>Each agent is a specialist. The Supervisor picks the right team for every request.</p>
+                <span class="tag" data-en="Agents" data-fa="ایجنت‌ها">Agents</span>
+                <h2 data-en="Meet The Team" data-fa="با تیم آشنا شوید">Meet The Team</h2>
+                <p data-en="Each agent is a specialist. The Supervisor picks the right team for every request."
+                   data-fa="هر ایجنت یک متخصص است. ناظر برای هر درخواست بهترین تیم را انتخاب می‌کند.">
+                    Each agent is a specialist. The Supervisor picks the right team for every request.
+                </p>
             </div>
 
             <div class="agents-grid">
                 <div class="agent-card">
                     <div class="agent-emoji">🧠</div>
-                    <h3>Supervisor</h3>
-                    <p>The brain. Analyzes requests and orchestrates the team.</p>
-                    <span class="tag-chip">Orchestrator</span>
+                    <h3 data-en="Supervisor" data-fa="ناظر">Supervisor</h3>
+                    <p data-en="The brain. Analyzes requests and orchestrates the team."
+                       data-fa="مغز متفکر. درخواست‌ها را تحلیل و تیم را هماهنگ می‌کند.">The brain. Analyzes requests and orchestrates the team.</p>
+                    <span class="tag-chip" data-en="Orchestrator" data-fa="هماهنگ‌کننده">Orchestrator</span>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-emoji">✍️</div>
-                    <h3>Writer</h3>
-                    <p>Creative writing, emails, stories, content generation.</p>
-                    <span class="tag-chip">Content</span>
+                    <h3 data-en="Writer" data-fa="نویسنده">Writer</h3>
+                    <p data-en="Creative writing, emails, stories, content generation."
+                       data-fa="نوشتن خلاقانه، ایمیل، داستان، تولید محتوا.">Creative writing, emails, stories, content generation.</p>
+                    <span class="tag-chip" data-en="Content" data-fa="محتوا">Content</span>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-emoji">📊</div>
-                    <h3>Analyst</h3>
-                    <p>Data analysis, comparisons, evaluations, insights.</p>
-                    <span class="tag-chip">Analysis</span>
+                    <h3 data-en="Analyst" data-fa="تحلیلگر">Analyst</h3>
+                    <p data-en="Data analysis, comparisons, evaluations, insights."
+                       data-fa="تحلیل داده، مقایسه، ارزیابی، بینش‌ها.">Data analysis, comparisons, evaluations, insights.</p>
+                    <span class="tag-chip" data-en="Analysis" data-fa="تحلیل">Analysis</span>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-emoji">🔬</div>
-                    <h3>Researcher</h3>
-                    <p>Deep research, fact-finding, information gathering.</p>
-                    <span class="tag-chip">Research</span>
+                    <h3 data-en="Researcher" data-fa="محقق">Researcher</h3>
+                    <p data-en="Deep research, fact-finding, information gathering."
+                       data-fa="تحقیق عمیق، یافتن واقعیت‌ها، جمع‌آوری اطلاعات.">Deep research, fact-finding, information gathering.</p>
+                    <span class="tag-chip" data-en="Research" data-fa="تحقیق">Research</span>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-emoji">📋</div>
-                    <h3>Planner</h3>
-                    <p>Roadmaps, project planning, step-by-step breakdowns.</p>
-                    <span class="tag-chip">Planning</span>
+                    <h3 data-en="Planner" data-fa="برنامه‌ریز">Planner</h3>
+                    <p data-en="Roadmaps, project planning, step-by-step breakdowns."
+                       data-fa="نقشه راه، برنامه‌ریزی پروژه، تجزیه گام به گام.">Roadmaps, project planning, step-by-step breakdowns.</p>
+                    <span class="tag-chip" data-en="Planning" data-fa="برنامه‌ریزی">Planning</span>
                 </div>
-
                 <div class="agent-card">
                     <div class="agent-emoji">🔍</div>
-                    <h3>Critic</h3>
-                    <p>Review, critique, and improve text and content.</p>
-                    <span class="tag-chip">Review</span>
+                    <h3 data-en="Critic" data-fa="منتقد">Critic</h3>
+                    <p data-en="Review, critique, and improve text and content."
+                       data-fa="بررسی، نقد و بهبود متن و محتوا.">Review, critique, and improve text and content.</p>
+                    <span class="tag-chip" data-en="Review" data-fa="بررسی">Review</span>
                 </div>
             </div>
 
             <div class="code-example" style="margin-top: 40px;">
                 <div class="code-example-header">
-                    <span>🐍</span> agents/translator.py — Add your own agent in 30 seconds
+                    <span>🐍</span>
+                    <span data-en="agents/translator.py — Add your own agent in 30 seconds"
+                          data-fa="agents/translator.py — ایجنت خود را در ۳۰ ثانیه اضافه کنید">
+                        agents/translator.py — Add your own agent in 30 seconds
+                    </span>
                 </div>
                 <div class="code-example-body">
 <span class="comment-c"># Just drop this file — auto-discovered on next run</span>
 <span class="keyword">from</span> agents.base_agent <span class="keyword">import</span> <span class="class-name">BaseAgent</span>
 
 <span class="keyword">class</span> <span class="class-name">TranslatorAgent</span>(<span class="class-name">BaseAgent</span>):
-    <span class="attr">NAME</span>        = <span class="string">"translator"</span>
-    <span class="attr">ROLE</span>        = <span class="string">"Translator"</span>
-    <span class="attr">DESCRIPTION</span> = <span class="string">"Translates text between languages"</span>
-    <span class="attr">ICON</span>        = <span class="string">"🌐"</span>
-    <span class="attr">TEMPERATURE</span> = <span class="string">0.3</span>
+    <span class="attr">NAME</span>          = <span class="string">"translator"</span>
+    <span class="attr">ROLE</span>          = <span class="string">"Translator"</span>
+    <span class="attr">DESCRIPTION</span>   = <span class="string">"Translates text between languages"</span>
+    <span class="attr">ICON</span>          = <span class="string">"🌐"</span>
+    <span class="attr">TEMPERATURE</span>   = <span class="string">0.3</span>
     <span class="attr">SYSTEM_PROMPT</span> = <span class="string">"You are an expert translator."</span>
                 </div>
             </div>
@@ -982,44 +683,22 @@
     <section id="providers">
         <div class="container">
             <div class="section-header">
-                <span class="tag">Providers</span>
-                <h2>Any AI Provider</h2>
-                <p>Works with any OpenAI-compatible endpoint. Switch at runtime without restart.</p>
+                <span class="tag" data-en="Providers" data-fa="ارائه‌دهندگان">Providers</span>
+                <h2 data-en="Any AI Provider" data-fa="هر ارائه‌دهنده هوش مصنوعی">Any AI Provider</h2>
+                <p data-en="Works with any OpenAI-compatible endpoint. Switch at runtime without restart."
+                   data-fa="با هر endpoint سازگار با OpenAI کار می‌کند. در حین اجرا بدون ری‌استارت تغییر دهید.">
+                    Works with any OpenAI-compatible endpoint. Switch at runtime without restart.
+                </p>
             </div>
-
             <div class="providers-grid">
-                <div class="provider-chip">
-                    <div class="icon">🔥</div>
-                    Bynara Router
-                </div>
-                <div class="provider-chip">
-                    <div class="icon">🤖</div>
-                    OpenAI
-                </div>
-                <div class="provider-chip">
-                    <div class="icon">⚡</div>
-                    Groq
-                </div>
-                <div class="provider-chip">
-                    <div class="icon">🤝</div>
-                    Together AI
-                </div>
-                <div class="provider-chip">
-                    <div class="icon">🔀</div>
-                    OpenRouter
-                </div>
-                <div class="provider-chip">
-                    <div class="icon">🧠</div>
-                    Anthropic
-                </div>
-                <div class="provider-chip">
-                    <div class="icon">💎</div>
-                    Google Gemini
-                </div>
-                <div class="provider-chip">
-                    <div class="icon">🔧</div>
-                    Custom
-                </div>
+                <div class="provider-chip"><div class="icon">🔥</div>Bynara Router</div>
+                <div class="provider-chip"><div class="icon">🤖</div>OpenAI</div>
+                <div class="provider-chip"><div class="icon">⚡</div>Groq</div>
+                <div class="provider-chip"><div class="icon">🤝</div>Together AI</div>
+                <div class="provider-chip"><div class="icon">🔀</div>OpenRouter</div>
+                <div class="provider-chip"><div class="icon">🧠</div>Anthropic</div>
+                <div class="provider-chip"><div class="icon">💎</div>Google Gemini</div>
+                <div class="provider-chip"><div class="icon">🔧</div><span data-en="Custom" data-fa="سفارشی">Custom</span></div>
             </div>
         </div>
     </section>
@@ -1030,16 +709,19 @@
     <section id="quickstart">
         <div class="container">
             <div class="section-header">
-                <span class="tag">Quick Start</span>
-                <h2>Up & Running in 3 Steps</h2>
-                <p>From clone to running bot in under 2 minutes.</p>
+                <span class="tag" data-en="Quick Start" data-fa="شروع سریع">Quick Start</span>
+                <h2 data-en="Up &amp; Running in 3 Steps" data-fa="آماده در ۳ مرحله">Up &amp; Running in 3 Steps</h2>
+                <p data-en="From clone to running bot in under 2 minutes."
+                   data-fa="از clone تا ربات در حال اجرا در کمتر از ۲ دقیقه.">
+                    From clone to running bot in under 2 minutes.
+                </p>
             </div>
 
             <div class="quickstart-steps">
                 <div class="qs-step">
                     <div class="qs-num">1</div>
                     <div class="qs-content">
-                        <h4>Clone the repository</h4>
+                        <h4 data-en="Clone the repository" data-fa="مخزن را clone کنید">Clone the repository</h4>
                         <div class="code-block">git clone https://github.com/m4tinbeigi-official/RickAgent.git<br>cd RickAgent</div>
                     </div>
                 </div>
@@ -1047,34 +729,63 @@
                 <div class="qs-step">
                     <div class="qs-num">2</div>
                     <div class="qs-content">
-                        <h4>Run the smart installer</h4>
-                        <div class="code-block">python3 install.py</div>
-                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">The installer picks your AI provider, tests your API key live, configures Telegram, and writes <code>.env</code> automatically.</p>
+                        <h4 data-en="Install dependencies" data-fa="وابستگی‌ها را نصب کنید">Install dependencies</h4>
+                        <div class="code-block">pip install -r requirements.txt</div>
+                        <p style="color:var(--text-muted);font-size:0.9rem;margin-top:8px;"
+                           data-en="Installs python-telegram-bot, LangGraph, FastAPI, and all dependencies."
+                           data-fa="python-telegram-bot، LangGraph، FastAPI و همه وابستگی‌ها را نصب می‌کند.">
+                            Installs python-telegram-bot, LangGraph, FastAPI, and all dependencies.
+                        </p>
                     </div>
                 </div>
 
                 <div class="qs-step">
                     <div class="qs-num">3</div>
                     <div class="qs-content">
-                        <h4>Start the bot + web panel</h4>
+                        <h4 data-en="Start the bot + web panel" data-fa="ربات + پنل وب را راه‌اندازی کنید">Start the bot + web panel</h4>
                         <div class="code-block">python3 main.py</div>
-                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">Bot is ready on Telegram. Web panel at <code>http://localhost:8080</code></p>
+                        <p style="color:var(--text-muted);font-size:0.9rem;margin-top:8px;"
+                           data-en="Bot starts polling. Web panel at <code>http://localhost:8080</code> — configure API keys and bot tokens from there."
+                           data-fa="ربات شروع به polling می‌کند. پنل وب در <code>http://localhost:8080</code> — کلیدهای API و توکن‌های ربات را از آنجا تنظیم کنید.">
+                            Bot starts polling. Web panel at <code>http://localhost:8080</code> — configure API keys and bot tokens from there.
+                        </p>
                     </div>
                 </div>
             </div>
 
             <!-- Bot Commands -->
-            <div style="margin-top: 60px;">
-                <h3 style="text-align: center; margin-bottom: 24px; font-size: 1.3rem;">🤖 Bot Commands</h3>
+            <div style="margin-top:60px;">
+                <h3 style="text-align:center;margin-bottom:24px;font-size:1.3rem;"
+                    data-en="🤖 Bot Commands" data-fa="🤖 دستورات ربات">🤖 Bot Commands</h3>
                 <table class="commands-table">
-                    <tr><td>/start</td><td>Welcome + team introduction</td></tr>
-                    <tr><td>/agents</td><td>List active agents with models and run counts</td></tr>
-                    <tr><td>/stats</td><td>System stats — uptime, token usage, top agents</td></tr>
-                    <tr><td>/panel</td><td>Web panel link</td></tr>
-                    <tr><td>/setprovider</td><td>Browse and switch AI providers at runtime</td></tr>
-                    <tr><td>/setprovider 2</td><td>Switch to provider #2 directly</td></tr>
-                    <tr><td>/clear</td><td>Clear conversation history for this chat</td></tr>
-                    <tr><td>/status</td><td>Current system configuration</td></tr>
+                    <tr>
+                        <td>/start</td>
+                        <td data-en="Welcome + team introduction" data-fa="خوشامدگویی + معرفی تیم">Welcome + team introduction</td>
+                    </tr>
+                    <tr>
+                        <td>/agents</td>
+                        <td data-en="List active agents with models and run counts" data-fa="لیست ایجنت‌های فعال با مدل‌ها و تعداد اجراها">List active agents with models and run counts</td>
+                    </tr>
+                    <tr>
+                        <td>/stats</td>
+                        <td data-en="System stats — uptime, token usage, top agents" data-fa="آمار سیستم — آپتایم، مصرف توکن، ایجنت‌های برتر">System stats — uptime, token usage, top agents</td>
+                    </tr>
+                    <tr>
+                        <td>/panel</td>
+                        <td data-en="Web panel link" data-fa="لینک پنل وب">Web panel link</td>
+                    </tr>
+                    <tr>
+                        <td>/setprovider</td>
+                        <td data-en="Browse and switch AI providers at runtime" data-fa="مرور و تغییر ارائه‌دهندگان AI در حین اجرا">Browse and switch AI providers at runtime</td>
+                    </tr>
+                    <tr>
+                        <td>/clear</td>
+                        <td data-en="Clear conversation history for this chat" data-fa="پاک کردن تاریخچه مکالمه این چت">Clear conversation history for this chat</td>
+                    </tr>
+                    <tr>
+                        <td>/status</td>
+                        <td data-en="Current system configuration and privacy check" data-fa="تنظیمات فعلی سیستم و بررسی حریم خصوصی">Current system configuration and privacy check</td>
+                    </tr>
                 </table>
             </div>
         </div>
@@ -1083,13 +794,23 @@
     <div class="divider"></div>
 
     <!-- CTA -->
-    <section style="padding: 80px 0;">
-        <div class="container" style="text-align: center;">
-            <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 16px;">Ready to Build Your Agent Team?</h2>
-            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 32px;">Clone the repo, run the installer, and you're live.</p>
+    <section style="padding:80px 0;">
+        <div class="container" style="text-align:center;">
+            <h2 style="font-size:2.2rem;font-weight:800;margin-bottom:16px;"
+                data-en="Ready to Build Your Agent Team?"
+                data-fa="آماده‌اید تیم ایجنت خود را بسازید؟">
+                Ready to Build Your Agent Team?
+            </h2>
+            <p style="color:var(--text-muted);font-size:1.1rem;margin-bottom:32px;"
+               data-en="Clone the repo, pip install, and you're live."
+               data-fa="مخزن را clone کنید، pip install بزنید و راه‌اندازی کنید.">
+                Clone the repo, pip install, and you're live.
+            </p>
             <div class="hero-buttons">
-                <a href="https://github.com/m4tinbeigi-official/RickAgent" class="btn btn-primary">⭐ Star on GitHub</a>
-                <a href="https://github.com/m4tinbeigi-official/RickAgent/fork" class="btn btn-secondary">🍴 Fork & Customize</a>
+                <a href="https://github.com/m4tinbeigi-official/RickAgent" class="btn btn-primary"
+                   data-en="⭐ Star on GitHub" data-fa="⭐ ستاره در GitHub">⭐ Star on GitHub</a>
+                <a href="https://github.com/m4tinbeigi-official/RickAgent/fork" class="btn btn-secondary"
+                   data-en="🍴 Fork &amp; Customize" data-fa="🍴 Fork و سفارشی‌سازی">🍴 Fork &amp; Customize</a>
             </div>
         </div>
     </section>
@@ -1099,11 +820,44 @@
         <div class="container">
             <div class="footer-links">
                 <a href="https://github.com/m4tinbeigi-official/RickAgent">GitHub</a>
-                <a href="https://github.com/m4tinbeigi-official/RickAgent/issues">Issues</a>
+                <a href="https://github.com/m4tinbeigi-official/RickAgent/issues"
+                   data-en="Issues" data-fa="مشکلات">Issues</a>
                 <a href="https://github.com/m4tinbeigi-official/RickAgent/blob/main/LICENSE">MIT License</a>
             </div>
-            <p>Built with ❤️ by <a href="https://github.com/m4tinbeigi-official">@m4tinbeigi-official</a></p>
+            <p>
+                <span data-en="Built with ❤️ by" data-fa="ساخته شده با ❤️ توسط">Built with ❤️ by</span>
+                <a href="https://github.com/m4tinbeigi-official">@m4tinbeigi-official</a>
+            </p>
         </div>
     </footer>
+
+    <script>
+        // ── Language switcher ──────────────────────────────────────
+        const STORAGE_KEY = 'rickagent-lang';
+
+        function setLang(lang) {
+            const html = document.documentElement;
+            html.setAttribute('lang', lang);
+            html.setAttribute('dir', lang === 'fa' ? 'rtl' : 'ltr');
+
+            document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+            document.getElementById('btn-fa').classList.toggle('active', lang === 'fa');
+
+            // Swap all [data-en][data-fa] elements
+            document.querySelectorAll('[data-en][data-fa]').forEach(el => {
+                const content = el.getAttribute('data-' + lang);
+                if (content !== null) el.innerHTML = content;
+            });
+
+            try { localStorage.setItem(STORAGE_KEY, lang); } catch(e) {}
+        }
+
+        // Init on load
+        (function() {
+            let lang = 'en';
+            try { lang = localStorage.getItem(STORAGE_KEY) || 'en'; } catch(e) {}
+            if (lang === 'fa') setLang('fa');
+        })();
+    </script>
 </body>
 </html>
