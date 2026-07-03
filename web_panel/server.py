@@ -20,13 +20,18 @@ Run alongside the Telegram bot via asyncio.gather() in main.py.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import os
+import secrets
+import time
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Optional
 
 from utils.config import Config
@@ -35,7 +40,106 @@ from utils.stats import stats
 
 logger = setup_logger("panel")
 
+# ── Session store ────────────────────────────────────────────────────────────
+# {token: expires_at_unix}
+_sessions: dict[str, float] = {}
+SESSION_LIFETIME = 86400  # 24 h
+
+_AUTH_SKIP = {"/login", "/api/auth/login"}
+
+
+def _hash_pw(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def _verify_session(token: str | None) -> bool:
+    if not token or token not in _sessions:
+        return False
+    if time.time() > _sessions[token]:
+        del _sessions[token]
+        return False
+    return True
+
+
+def _create_session() -> str:
+    token = secrets.token_hex(32)
+    _sessions[token] = time.time() + SESSION_LIFETIME
+    return token
+
+
+# ── Login HTML ───────────────────────────────────────────────────────────────
+_LOGIN_HTML = """<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ورود به پنل مدیریت</title>
+<link href="https://fonts.bunny.net/css?family=vazirmatn:400,600,700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Vazirmatn',sans-serif;background:#06090f;color:#e4ecf7;
+  display:flex;align-items:center;justify-content:center;min-height:100vh}
+.card{background:#0c1120;border:1px solid #233047;border-radius:16px;
+  padding:40px 36px;width:100%;max-width:380px;text-align:center}
+.logo{font-size:3rem;margin-bottom:12px}
+h1{font-size:1.25rem;font-weight:700;margin-bottom:6px}
+p{color:#4e6178;font-size:.85rem;margin-bottom:28px}
+.field{text-align:right;margin-bottom:16px}
+label{display:block;font-size:.8rem;color:#94aabf;margin-bottom:6px}
+input{width:100%;background:#162133;border:1px solid #233047;color:#e4ecf7;
+  border-radius:8px;padding:10px 14px;font-family:inherit;font-size:.9rem;outline:none;transition:.2s}
+input:focus{border-color:#4895ef}
+.btn{width:100%;background:linear-gradient(135deg,#4895ef,#2563eb);color:#fff;
+  border:none;border-radius:10px;padding:12px;font-family:inherit;font-size:1rem;
+  font-weight:700;cursor:pointer;margin-top:8px;transition:.2s}
+.btn:hover{opacity:.9}
+.err{color:#f2445a;font-size:.8rem;margin-top:12px;display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🤖</div>
+  <h1>پنل مدیریت RickAgent</h1>
+  <p>برای ورود نام کاربری و رمز عبور خود را وارد کنید</p>
+  <div class="field"><label>نام کاربری</label>
+    <input id="u" type="text" placeholder="admin" autocomplete="username"></div>
+  <div class="field"><label>رمز عبور</label>
+    <input id="p" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+  <button class="btn" onclick="login()">ورود به پنل</button>
+  <div class="err" id="err">نام کاربری یا رمز عبور اشتباه است</div>
+</div>
+<script>
+async function login() {
+  const u = document.getElementById('u').value.trim();
+  const p = document.getElementById('p').value;
+  const r = await fetch('/api/auth/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({username:u, password:p}), credentials:'include'
+  });
+  if (r.ok) { window.location.href = '/'; }
+  else { document.getElementById('err').style.display='block'; }
+}
+document.addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+</script>
+</body>
+</html>"""
+
+
+# ── Auth middleware ──────────────────────────────────────────────────────────
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in _AUTH_SKIP:
+            return await call_next(request)
+        token = request.cookies.get("ra_session")
+        if not _verify_session(token):
+            if request.url.path.startswith("/api/"):
+                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+            return RedirectResponse("/login")
+        return await call_next(request)
+
+
 app = FastAPI(title="AI Agent Panel", docs_url=None, redoc_url=None)
+app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -68,6 +172,7 @@ class TokenCreate(BaseModel):
     bot_username: str = ""
     description: str = ""
     is_active: bool = True
+    agent_config_id: Optional[int] = None
 
 class TokenUpdate(BaseModel):
     name: Optional[str] = None
@@ -75,6 +180,10 @@ class TokenUpdate(BaseModel):
     bot_username: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    agent_config_id: Optional[int] = None
+
+class SettingsUpdate(BaseModel):
+    settings: dict
 
 class AgentConfigCreate(BaseModel):
     agent_name: str
@@ -88,6 +197,7 @@ class AgentConfigCreate(BaseModel):
     max_tokens: int = 4096
     is_active: bool = True
     extra_config: str = "{}"
+    telegram_bot_token: Optional[str] = None
 
 class AgentConfigUpdate(BaseModel):
     agent_name: Optional[str] = None
@@ -101,6 +211,10 @@ class AgentConfigUpdate(BaseModel):
     max_tokens: Optional[int] = None
     is_active: Optional[bool] = None
     extra_config: Optional[str] = None
+    telegram_bot_token: Optional[str] = None
+
+class GenerateAgentRequest(BaseModel):
+    description: str
 
 class TestConnectionRequest(BaseModel):
     provider_id: int
@@ -109,6 +223,15 @@ class TestConnectionRequest(BaseModel):
 class ImportRequest(BaseModel):
     data: dict
     overwrite: bool = False
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class ChangeCredentialsRequest(BaseModel):
+    current_password: str
+    new_username: str
+    new_password: str
 
 
 # ── HTML dashboard ────────────────────────────────────────────────────────
@@ -741,8 +864,18 @@ tr:hover td { background: var(--s2); }
   .stats-bar { grid-template-columns: repeat(2,1fr); }
   header { padding: 0 14px; gap: 10px; }
   .page { padding: 14px 14px 32px; }
-  .tab .t-lbl { display: none; }
   .logo em { display: none; }
+}
+
+/* Template Wizard Cards */
+.ac-tpl-card {
+  transition: all 0.2s ease-in-out !important;
+}
+.ac-tpl-card:hover {
+  border-color: var(--bd2) !important;
+  background: var(--s3) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 </style>
 </head>
@@ -763,6 +896,12 @@ tr:hover td { background: var(--s2); }
     <button class="tab" onclick="goTab('settings',this)">
       <span class="t-icon">⚙️</span><span class="t-lbl">تنظیمات</span>
     </button>
+    <button class="tab" onclick="goTab('monitoring',this)">
+      <span class="t-icon">🖥️</span><span class="t-lbl">مانیتورینگ زنده</span>
+    </button>
+    <button class="tab" onclick="goTab('about',this)">
+      <span class="t-icon">👤</span><span class="t-lbl">درباره سازنده</span>
+    </button>
   </div>
 
   <div class="pill uptime" id="uptime-pill">⏱ —</div>
@@ -782,6 +921,31 @@ tr:hover td { background: var(--s2); }
 
 <!-- ════════════════════════════════ DASHBOARD ═══════════════════════════ -->
 <div id="page-dashboard" class="page active">
+
+  <!-- راهنمای راه‌اندازی سریع گروه تلگرام -->
+  <div class="panel mb" style="background:linear-gradient(135deg, rgba(72,149,239,0.1) 0%, rgba(72,149,239,0.02) 100%);border:1px solid rgba(72,149,239,0.3)">
+    <div class="ph" style="color:var(--blue);font-weight:700">🚀 راهنمای سریع راه‌اندازی ربات‌های گروهی تلگرام</div>
+    <div class="pb" style="font-size:13px;line-height:1.7;color:var(--text)">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;padding:6px 0">
+        <div>
+          <strong>۱. ساخت ربات در تلگرام:</strong>
+          <p style="color:var(--dim);margin:4px 0 0 0">وارد بات رسمی <a href="https://t.me/BotFather" target="_blank" style="color:var(--blue);text-decoration:underline;font-weight:bold">BotFather@</a> شوید. دستور <code>/newbot</code> را بزنید، توکن دریافتی را کپی کنید.</p>
+        </div>
+        <div>
+          <strong>۲. غیرفعال‌سازی حریم خصوصی (بسیار مهم):</strong>
+          <p style="color:var(--dim);margin:4px 0 0 0">در BotFather دستور <code>/setprivacy</code> را بزنید، ربات خود را انتخاب کرده و آن را روی <strong>Disable</strong> قرار دهید تا ربات بتواند بدون ریپلای مستقیم پیام‌های گروه را بخواند.</p>
+        </div>
+        <div>
+          <strong>۳. ثبت ربات و ایجنت در پنل:</strong>
+          <p style="color:var(--dim);margin:4px 0 0 0">در بخش <strong>مدیریت سیستم</strong> ابتدا ایجنت بسازید (با جادوی هوش مصنوعی گام‌به‌گام)، سپس توکن ربات تلگرام را ثبت و آن را به ایجنت متصل کنید.</p>
+        </div>
+        <div>
+          <strong>۴. ساخت گروه و گفتگو:</strong>
+          <p style="color:var(--dim);margin:4px 0 0 0">یک گروه بسازید، ربات‌ها را اد کنید. در تنظیمات پنل شناسه تلگرام خود را وارد کنید، همکاری گروهی را فعال کنید و پروژه را استارت بزنید!</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- آمار کلی -->
   <div class="stats-bar">
@@ -910,8 +1074,7 @@ tr:hover td { background: var(--s2); }
   <div class="panel mb" style="overflow:visible">
     <div class="sub-tabs">
       <button class="sub-tab active" onclick="goAdminTab('providers',this)">🌐 ارائهدهندگان هوش مصنوعی</button>
-      <button class="sub-tab" onclick="goAdminTab('tokens',this)">🔑 توکنهای ربات</button>
-      <button class="sub-tab" onclick="goAdminTab('agent-configs',this)">⚙️ تنظیمات Agentها</button>
+      <button class="sub-tab" onclick="goAdminTab('agent-configs',this)">⚙️ مدیریت ایجنت‌ها و ربات‌ها</button>
     </div>
   </div>
 
@@ -937,44 +1100,22 @@ tr:hover td { background: var(--s2); }
     </div>
   </div>
 
-  <!-- ── Bot Tokens ── -->
-  <div id="admin-tokens" class="sub-page">
-    <div class="admin-card">
-      <div class="action-bar">
-        <h3 style="font-size:14px;font-weight:700">🔑 توکن‌های ربات تلگرام</h3>
-        <button class="btn btn-primary btn-sm" onclick="openTokenModal()">➕ افزودن توکن</button>
-      </div>
-      <div class="admin-card-body tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th><th>نام</th><th>نام کاربری</th><th>توکن</th><th>توضیحات</th><th>وضعیت</th><th>عملیات</th>
-            </tr>
-          </thead>
-          <tbody id="tokens-tbody">
-            <tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">در حال بارگذاری...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
   <!-- ── Agent Configs ── -->
   <div id="admin-agent-configs" class="sub-page">
     <div class="admin-card">
       <div class="action-bar">
-        <h3 style="font-size:14px;font-weight:700">⚙️ تنظیمات Agentها</h3>
-        <button class="btn btn-primary btn-sm" onclick="openAgentConfigModal()">➕ افزودن تنظیمات</button>
+        <h3 style="font-size:14px;font-weight:700">⚙️ مدیریت ایجنت‌ها و ربات‌های تلگرام</h3>
+        <button class="btn btn-primary btn-sm" onclick="openAgentConfigModal()">➕ ساخت ایجنت جدید</button>
       </div>
       <div class="admin-card-body tbl-wrap">
         <table>
           <thead>
             <tr>
-              <th>#</th><th>آیکون</th><th>نام Agent</th><th>نام نمایشی</th><th>ارائه‌دهنده</th><th>مدل</th><th>دما</th><th>وضعیت</th><th>عملیات</th>
+              <th>#</th><th>آیکون</th><th>نام انگلیسی</th><th>نام نمایشی</th><th>ارائه‌دهنده</th><th>مدل</th><th>دما</th><th>توکن ربات تلگرام</th><th>نام کاربری ربات</th><th>وضعیت ربات</th><th>عملیات</th>
             </tr>
           </thead>
           <tbody id="agent-configs-tbody">
-            <tr><td colspan="9" style="text-align:center;color:var(--dim);padding:36px">در حال بارگذاری...</td></tr>
+            <tr><td colspan="11" style="text-align:center;color:var(--dim);padding:36px">در حال بارگذاری...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1002,6 +1143,315 @@ tr:hover td { background: var(--s2); }
       <div class="ph">🛠️ تنظیمات عمومی</div>
       <div id="cfg-other"></div>
     </div>
+    <div class="panel" style="grid-column: span 2">
+      <div class="ph">👥 تنظیمات گفتگوی گروهی و رئیس ایجنت‌ها</div>
+      <div class="pb" style="padding: 20px">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">
+              شناسه عددی رئیس ایجنت‌ها (Telegram User ID)
+              <span style="font-size:11px;font-weight:normal;color:var(--dim)">
+                (برای دریافت شناسه خود، به ربات <a href="https://t.me/userinfobot" target="_blank" style="color:var(--blue);text-decoration:underline">userinfobot@</a> پیام دهید)
+              </span>
+            </label>
+            <input class="form-input" id="set-chief-id" placeholder="مثال: 123456789">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:14px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="set-group-collab" style="width:18px;height:18px;cursor:pointer">
+              فعال‌سازی گفتگوی گروهی خودکار ایجنت‌ها (Cascading Replies)
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ترتیب و اولویت نوبت صحبت ایجنت‌ها در گروه (نام‌های انگلیسی ایجنت‌ها با کاما جدا شوند)</label>
+          <input class="form-input" id="set-turn-order" placeholder="مثال: planner, writer, critic, supervisor">
+        </div>
+        
+        <!-- LangSmith settings -->
+        <div style="border-top: 1px solid var(--bd); margin-top: 20px; padding-top: 15px;">
+          <h4 style="margin: 0 0 10px 0; font-size: 13px; color: var(--blue)">🛠️ تنظیمات ردیابی LangSmith</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">کلید API ردیابی (LangSmith API Key)</label>
+              <input class="form-input" id="set-ls-key" type="password" placeholder="lsv2_pt_...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">نام پروژه (LangSmith Project)</label>
+              <input class="form-input" id="set-ls-project" placeholder="مثال: ai-telegram-agents">
+            </div>
+          </div>
+          <div class="form-group" style="margin-top: 10px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="set-ls-tracing" style="width:18px;height:18px;cursor:pointer">
+              فعال‌سازی ردیابی LangSmith (توصیه می‌شود)
+            </label>
+          </div>
+        </div>
+
+        <div style="text-align: left; margin-top: 15px;">
+          <button class="btn btn-primary" onclick="saveSettingsDb()">💾 ذخیره تنظیمات عمومی و گروهی</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Domain & SSL Settings -->
+    <div class="panel" style="grid-column: span 2; margin-top: 20px;">
+      <div class="ph">🌐 تنظیمات دامنه و SSL</div>
+      <div class="pb" style="padding:20px">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">دامنه پنل (Domain)</label>
+            <input class="form-input" id="set-domain" placeholder="مثال: panel.example.com">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:14px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="set-ssl-enabled" style="width:18px;height:18px;cursor:pointer" onchange="toggleSslFields()">
+              فعال‌سازی SSL/HTTPS
+            </label>
+          </div>
+        </div>
+        <div id="ssl-fields" style="display:none">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">مسیر فایل گواهی SSL (certfile)</label>
+              <input class="form-input" id="set-ssl-cert" placeholder="مثال: /etc/ssl/certs/fullchain.pem">
+            </div>
+            <div class="form-group">
+              <label class="form-label">مسیر فایل کلید SSL (keyfile)</label>
+              <input class="form-input" id="set-ssl-key" placeholder="مثال: /etc/ssl/private/privkey.pem">
+            </div>
+          </div>
+          <div style="background:rgba(246,183,60,0.1);border:1px solid rgba(246,183,60,0.3);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--yellow);margin-bottom:12px">
+            ⚠️ پس از ذخیره تنظیمات SSL، باید اپلیکیشن را مجدداً راه‌اندازی کنید تا تغییرات اعمال شوند.
+          </div>
+        </div>
+        <div style="text-align:left;margin-top:8px">
+          <button class="btn btn-primary" onclick="saveDomainSettings()">💾 ذخیره تنظیمات دامنه</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account & Security -->
+    <div class="panel" style="grid-column: span 2; margin-top: 20px;">
+      <div class="ph">🔐 امنیت پنل — تغییر نام کاربری و رمز عبور</div>
+      <div class="pb" style="padding:20px">
+        <div id="panel-current-user" style="font-size:12px;color:var(--dim);margin-bottom:14px">
+          نام کاربری فعلی: در حال بارگذاری...
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">رمز عبور فعلی</label>
+            <input class="form-input" id="sec-current-pw" type="password" placeholder="رمز عبور فعلی">
+          </div>
+          <div class="form-group">
+            <label class="form-label">نام کاربری جدید</label>
+            <input class="form-input" id="sec-new-user" type="text" placeholder="نام کاربری جدید">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">رمز عبور جدید</label>
+            <input class="form-input" id="sec-new-pw" type="password" placeholder="رمز عبور جدید (حداقل ۴ کاراکتر)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">تکرار رمز عبور جدید</label>
+            <input class="form-input" id="sec-new-pw2" type="password" placeholder="تکرار رمز عبور">
+          </div>
+        </div>
+        <div style="text-align:left;margin-top:8px">
+          <button class="btn btn-primary" onclick="changeCredentials()">🔒 تغییر اطلاعات ورود</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Memories Manager Panel -->
+    <div class="panel" style="margin-top: 20px;">
+      <div class="ph">🧠 حافظه بلندمدت ایجنت‌ها (Memories)</div>
+      <div class="pb" style="padding: 16px;">
+        <p style="font-size: 13px; color: var(--dim); margin-top: 0; margin-bottom: 15px; direction: rtl; text-align: right;">
+          لیست مطالبی که با پیام‌های <strong>«به خاطر بسپار»</strong> یا <strong>«یادت باشه»</strong> به ربات‌ها آموخته‌اید:
+        </p>
+        <div id="memories-container" style="display:flex; flex-direction:column; gap:12px;">
+          <div class="empty"><p>در حال بارگذاری حافظه... ⏳</p></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════ MONITORING ══════════════════════════ -->
+<div id="page-monitoring" class="page">
+  <div class="grid-2">
+    <!-- Health Check Status -->
+    <div>
+      <div class="panel mb">
+        <div class="ph">🖥️ وضعیت سرور و اتصالات</div>
+        <div class="pb" style="padding:16px">
+          <!-- Server Status -->
+          <div style="margin-bottom:16px">
+            <h4 style="margin:0 0 8px 0;font-size:13px">📊 منابع سرور</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div style="background:var(--s2);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--bd);text-align:center">
+                <div style="font-size:11px;color:var(--dim)">بار پردازنده (CPU)</div>
+                <div style="font-size:20px;font-weight:bold;color:var(--blue)" id="mon-cpu">۰%</div>
+              </div>
+              <div style="background:var(--s2);padding:10px;border-radius:var(--radius-sm);border:1px solid var(--bd);text-align:center">
+                <div style="font-size:11px;color:var(--dim)">مصرف حافظه (RAM)</div>
+                <div style="font-size:20px;font-weight:bold;color:var(--blue)" id="mon-ram">۰%</div>
+              </div>
+            </div>
+            <div style="margin-top:10px;font-size:11px;color:var(--dim)">
+              مدت زمان فعالیت سرور: <span id="mon-uptime">—</span> | پایگاه داده: <span id="mon-db" style="color:var(--green)">فعال</span>
+            </div>
+          </div>
+          
+          <!-- Telegram Bots -->
+          <div style="margin-bottom:16px">
+            <h4 style="margin:0 0 8px 0;font-size:13px">🤖 وضعیت اتصال ربات‌ها در تلگرام</h4>
+            <div id="mon-bots-list" style="display:flex;flex-direction:column;gap:8px">
+              <div style="color:var(--dim);font-size:12px">در حال بررسی...</div>
+            </div>
+          </div>
+          
+          <!-- AI Web Services -->
+          <div>
+            <h4 style="margin:0 0 8px 0;font-size:13px">🌐 وب‌سرویس‌های هوش مصنوعی (API)</h4>
+            <div id="mon-providers-list" style="display:flex;flex-direction:column;gap:8px">
+              <div style="color:var(--dim);font-size:12px">در حال بررسی...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- System Logs Console -->
+    <div>
+      <div class="panel" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="ph" style="display:flex;justify-content:space-between;align-items:center">
+          <span>📜 کنسول لاگ‌های سیستم (تک‌خطی)</span>
+          <button class="btn btn-sm btn-icon" onclick="loadSystemLogs()" title="بروزرسانی لاگ‌ها">🔄</button>
+        </div>
+        <div class="pb" style="padding:12px;flex-grow:1;display:flex;flex-direction:column">
+          <pre id="mon-console" style="background:#0b0f19;color:#a9b1d6;padding:12px;border-radius:var(--radius-sm);font-family:monospace;font-size:11px;line-height:1.5;overflow:auto;max-height:480px;height:480px;margin:0;white-space:pre-wrap;word-break:break-all;border:1px solid #1a233a"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════ ABOUT ═══════════════════════════════ -->
+<div id="page-about" class="page">
+  <div style="max-width:680px;margin:0 auto;padding:24px 0">
+
+    <!-- Profile card -->
+    <div class="panel mb" style="
+      background: linear-gradient(135deg,rgba(108,92,231,0.12) 0%,rgba(10,10,15,0.0) 100%);
+      border: 1px solid rgba(108,92,231,0.35);
+      text-align:center;padding:40px 24px
+    ">
+      <div style="
+        width:88px;height:88px;border-radius:50%;
+        background:linear-gradient(135deg,#6c5ce7,#a29bfe);
+        display:flex;align-items:center;justify-content:center;
+        font-size:2.6rem;margin:0 auto 20px
+      ">🤖</div>
+      <h2 style="font-size:1.55rem;font-weight:800;margin:0 0 6px">Rick Sanchez</h2>
+      <p style="color:var(--dim);font-size:0.9rem;margin:0 0 24px">
+        توسعه‌دهنده | هوش مصنوعی | Open Source
+      </p>
+
+      <!-- Social links -->
+      <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:28px">
+
+        <a href="https://instagram.com/m4tinbeigi" target="_blank" rel="noopener" style="
+          display:flex;align-items:center;gap:8px;
+          background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);
+          color:#fff;text-decoration:none;padding:10px 20px;
+          border-radius:10px;font-weight:600;font-size:0.9rem;transition:opacity .2s
+        " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+          </svg>
+          اینستاگرام
+        </a>
+
+        <a href="https://twitter.com/m4tinbeigi" target="_blank" rel="noopener" style="
+          display:flex;align-items:center;gap:8px;
+          background:#000;color:#fff;text-decoration:none;
+          padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.9rem;
+          border:1px solid #333;transition:opacity .2s
+        " onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.259 5.631zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+          توییتر / X
+        </a>
+
+        <a href="https://t.me/m4tinbeigi" target="_blank" rel="noopener" style="
+          display:flex;align-items:center;gap:8px;
+          background:#0088cc;color:#fff;text-decoration:none;
+          padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.9rem;transition:opacity .2s
+        " onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+            <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+          </svg>
+          تلگرام
+        </a>
+      </div>
+
+      <!-- Support button -->
+      <a href="https://reymit.ir/m4tinbeigi" target="_blank" rel="noopener" style="
+        display:inline-flex;align-items:center;gap:10px;
+        background:linear-gradient(135deg,#f7971e,#ffd200);
+        color:#1a1a1a;text-decoration:none;
+        padding:14px 32px;border-radius:12px;
+        font-weight:800;font-size:1rem;
+        box-shadow:0 4px 20px rgba(247,151,30,0.4);transition:all .2s
+      " onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 28px rgba(247,151,30,0.55)'"
+         onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(247,151,30,0.4)'">
+        ☕ حمایت از سازنده
+      </a>
+      <p style="color:var(--dim);font-size:0.8rem;margin:12px 0 0">
+        اگر این پروژه برات مفید بوده، یه قهوه مهمونم کن 🙏
+      </p>
+    </div>
+
+    <!-- Project info -->
+    <div class="panel mb">
+      <div class="ph">🤖 درباره RickAgent</div>
+      <div class="pb" style="padding:20px">
+        <p style="color:var(--dim);line-height:1.8;margin:0 0 16px">
+          RickAgent یک سیستم هوش مصنوعی چندعاملی متن‌باز برای تلگرام است که با LangGraph ساخته شده.
+          طراحی شده برای راه‌اندازی سریع، بدون نیاز به ثبت‌نام ایجنت‌ها، با پشتیبانی از چندین ارائه‌دهنده AI.
+        </p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <a href="https://github.com/m4tinbeigi-official/RickAgent" target="_blank" rel="noopener"
+             class="btn btn-sm" style="text-decoration:none">
+            ⭐ GitHub
+          </a>
+          <a href="https://m4tinbeigi-official.github.io/RickAgent" target="_blank" rel="noopener"
+             class="btn btn-sm" style="text-decoration:none">
+            🌐 وب‌سایت
+          </a>
+          <a href="https://github.com/m4tinbeigi-official/RickAgent/issues" target="_blank" rel="noopener"
+             class="btn btn-sm" style="text-decoration:none">
+            🐛 گزارش باگ
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Version -->
+    <div class="panel" style="text-align:center;padding:16px">
+      <span style="color:var(--dim);font-size:0.85rem">
+        RickAgent v2.0 &nbsp;·&nbsp; MIT License &nbsp;·&nbsp;
+        ساخته شده با ❤️ توسط
+        <a href="https://github.com/m4tinbeigi-official" target="_blank" style="color:var(--accent)">@m4tinbeigi</a>
+      </span>
+    </div>
+
   </div>
 </div>
 
@@ -1051,104 +1501,147 @@ tr:hover td { background: var(--s2); }
   </div>
 </div>
 
-<!-- Token Modal -->
-<div class="modal-overlay" id="modal-token">
-  <div class="modal">
-    <div class="modal-hd">
-      <h3 id="modal-token-title">افزودن توکن ربات</h3>
-      <button class="modal-close" onclick="closeModal('modal-token')">✕</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="tok-edit-id">
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">نام ربات *</label>
-          <input class="form-input" id="tok-name" placeholder="مثال: ربات پشتیبانی">
-        </div>
-        <div class="form-group">
-          <label class="form-label">نام کاربری ربات</label>
-          <input class="form-input" id="tok-username" placeholder="@mybot">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">توکن ربات تلگرام *</label>
-        <input class="form-input" id="tok-token" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
-      </div>
-      <div class="form-group">
-        <label class="form-label">توضیحات</label>
-        <input class="form-input" id="tok-desc" placeholder="توضیحات اختیاری">
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-primary" onclick="saveToken()">💾 ذخیره</button>
-        <button class="btn" onclick="closeModal('modal-token')">انصراف</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Agent Config Modal -->
+<!-- Agent Config Modal (Wizard) -->
 <div class="modal-overlay" id="modal-agent-config">
   <div class="modal" style="width:640px">
     <div class="modal-hd">
-      <h3 id="modal-ac-title">افزودن تنظیمات Agent</h3>
+      <h3 id="modal-ac-title">ساخت ایجنت جدید (مرحله به مرحله)</h3>
       <button class="modal-close" onclick="closeModal('modal-agent-config')">✕</button>
     </div>
+    
+    <!-- Progress Indicator -->
+    <div style="padding: 16px 22px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--s2);padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--bd)">
+        <div id="wz-step-1-indicator" style="font-weight:700;color:var(--blue);font-size:12px">۱. نقش و الگو</div>
+        <div style="color:var(--dim)">←</div>
+        <div id="wz-step-2-indicator" style="font-weight:500;color:var(--dim);font-size:12px">۲. مغز هوش مصنوعی</div>
+        <div style="color:var(--dim)">←</div>
+        <div id="wz-step-3-indicator" style="font-weight:500;color:var(--dim);font-size:12px">۳. تنظیمات نهایی</div>
+      </div>
+    </div>
+
     <div class="modal-body">
       <input type="hidden" id="ac-edit-id">
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">نام Agent (یکتا) *</label>
-          <input class="form-input" id="ac-name" placeholder="مثال: writer">
+      
+      <!-- STEP 1: Role Selection & Info -->
+      <div id="wz-step-1">
+        <div style="background:var(--s2);border:1px dashed var(--blue);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px">
+          <label class="form-label" style="color:var(--blue);font-weight:700">✨ ساخت خودکار با هوش مصنوعی (AI Magic)</label>
+          <div style="display:flex;gap:8px">
+            <input class="form-input" id="ac-ai-desc" placeholder="توضیح دهید چه ایجنتی می‌خواهید؟ (مثلا: یک مشاور مالی شخصی)">
+            <button class="btn btn-primary" onclick="generateAgentWithAI()" id="ac-ai-btn">تولید 🪄</button>
+          </div>
+          <div style="font-size:11px;color:var(--dim);margin-top:6px">سیستم با تحلیل توصیف شما، نام، مشخصات و پرامپت حرفه‌ای برای ایجنت می‌سازد.</div>
         </div>
-        <div class="form-group">
-          <label class="form-label">نام نمایشی</label>
-          <input class="form-input" id="ac-display" placeholder="مثال: نویسنده خلاق">
+        
+        <label class="form-label" style="margin-bottom:10px">یا یک الگو انتخاب کنید یا نقش سفارشی خود را بسازید:</label>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px">
+          <div class="ac-tpl-card" onclick="selectTemplateCard('writer')" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:10px;cursor:pointer;transition:all 0.2s">
+            <span style="font-size:20px">✍️</span> <strong>نویسنده (Writer)</strong>
+            <div style="font-size:11px;color:var(--dim)">تولید محتوا، ایمیل، داستان و متون</div>
+          </div>
+          <div class="ac-tpl-card" onclick="selectTemplateCard('critic')" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:10px;cursor:pointer;transition:all 0.2s">
+            <span style="font-size:20px">🔍</span> <strong>منتقد (Critic)</strong>
+            <div style="font-size:11px;color:var(--dim)">بازبینی، ویراستاری و بهبود پیش‌نویس‌ها</div>
+          </div>
+          <div class="ac-tpl-card" onclick="selectTemplateCard('analyst')" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:10px;cursor:pointer;transition:all 0.2s">
+            <span style="font-size:20px">📊</span> <strong>تحلیلگر (Analyst)</strong>
+            <div style="font-size:11px;color:var(--dim)">مقایسه داده‌ها و تحلیل ساختاری</div>
+          </div>
+          <div class="ac-tpl-card" onclick="selectTemplateCard('planner')" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:10px;cursor:pointer;transition:all 0.2s">
+            <span style="font-size:20px">📋</span> <strong>برنامه‌ریز (Planner)</strong>
+            <div style="font-size:11px;color:var(--dim)">طراحی سناریو و نقشه راه کارها</div>
+          </div>
+          <div class="ac-tpl-card" onclick="selectTemplateCard('researcher')" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:10px;cursor:pointer;transition:all 0.2s">
+            <span style="font-size:20px">🔬</span> <strong>محقق (Researcher)</strong>
+            <div style="font-size:11px;color:var(--dim)">تحقیق علمی و جمع‌آوری اطلاعات</div>
+          </div>
+          <div class="ac-tpl-card" onclick="selectTemplateCard('supervisor')" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:10px;cursor:pointer;transition:all 0.2s">
+            <span style="font-size:20px">🧠</span> <strong>ناظر (Supervisor)</strong>
+            <div style="font-size:11px;color:var(--dim)">هماهنگ‌کننده کل تیم و نویسنده پاسخ</div>
+          </div>
+          <div class="ac-tpl-card" onclick="selectTemplateCard('custom')" style="background:var(--s2);border:1px solid var(--bd);border-radius:var(--radius-sm);padding:10px;cursor:pointer;transition:all 0.2s;grid-column:span 2;text-align:center">
+            <span style="font-size:20px">⚙️</span> <strong>نقش جدید (سفارشی)</strong>
+            <div style="font-size:11px;color:var(--dim)">تعریف مشخصات کامل ایجنت توسط خودتان</div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">نام انگلیسی ایجنت (یکتا) *</label>
+            <input class="form-input" id="ac-name" placeholder="مثال: writer">
+          </div>
+          <div class="form-group">
+            <label class="form-label">نام نمایشی (فارسی)</label>
+            <input class="form-input" id="ac-display" placeholder="مثال: نویسنده خلاق">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">آیکون / ایموجی</label>
+            <input class="form-input" id="ac-icon" placeholder="🤖" style="text-align:center;font-size:24px">
+          </div>
+          <div class="form-group">
+            <label class="form-label">توضیح کوتاه کارکرد</label>
+            <input class="form-input" id="ac-desc" placeholder="ایجنت چه کاری انجام می‌دهد؟">
+          </div>
         </div>
       </div>
-      <div class="form-row">
+
+      <!-- STEP 2: AI brain choice -->
+      <div id="wz-step-2" style="display:none">
         <div class="form-group">
-          <label class="form-label">آیکون</label>
-          <input class="form-input" id="ac-icon" placeholder="✍️" style="text-align:center;font-size:24px">
-        </div>
-        <div class="form-group">
-          <label class="form-label">ارائه‌دهنده</label>
-          <select class="form-select" id="ac-provider">
+          <label class="form-label">ارائه‌دهنده هوش مصنوعی (AI Provider)</label>
+          <select class="form-select" id="ac-provider" onchange="onProviderChange(this.value)">
             <option value="">— پیشفرض —</option>
           </select>
         </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 2">
+            <label class="form-label">مدل هوش مصنوعی</label>
+            <input class="form-input" id="ac-model" list="ac-model-list" placeholder="مدل را انتخاب یا تایپ کنید">
+            <datalist id="ac-model-list"></datalist>
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:14px">
+            <button class="btn" style="height:38px;white-space:nowrap" onclick="testAgentModelConnection()" id="btn-test-model">🔌 تست اتصال مدل</button>
+          </div>
+          <div class="form-group">
+            <label class="form-label">دما (خلاقیت - Temperature)</label>
+            <input class="form-input" id="ac-temp" type="number" min="0" max="2" step="0.1" value="0.7">
+          </div>
+        </div>
       </div>
-      <div class="form-row">
+
+      <!-- STEP 3: Final Prompt & Settings -->
+      <div id="wz-step-3" style="display:none">
         <div class="form-group">
-          <label class="form-label">مدل</label>
-          <input class="form-input" id="ac-model" placeholder="gpt-4o-mini">
+          <label class="form-label">توکن ربات تلگرام اختصاصی (اختیاری)</label>
+          <input class="form-input" id="ac-bot-token" placeholder="مثال: 123456789:ABCdefGhIJKlmNoPQRsT">
+          <div style="font-size:11px;color:var(--dim);margin-top:4px">اگر می‌خواهید این ایجنت مستقیماً به یک ربات تلگرام اختصاصی متصل شود، توکن آن را اینجا وارد کنید.</div>
         </div>
         <div class="form-group">
-          <label class="form-label">دما (Temperature)</label>
-          <input class="form-input" id="ac-temp" type="number" min="0" max="2" step="0.1" value="0.7">
+          <label class="form-label">دستورات سیستمی (System Prompt)</label>
+          <textarea class="form-textarea" id="ac-prompt" rows="6" placeholder="You are a helpful AI assistant..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">حداکثر توکن (Max Tokens)</label>
+            <input class="form-input" id="ac-max-tokens" type="number" value="4096">
+          </div>
+          <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:14px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+              <input type="checkbox" id="ac-active" checked style="width:18px;height:18px;cursor:pointer">
+              فعال باشد (آماده کار در سیستم)
+            </label>
+          </div>
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">توضیحات</label>
-        <input class="form-input" id="ac-desc" placeholder="توضیحات Agent">
-      </div>
-      <div class="form-group">
-        <label class="form-label">System Prompt</label>
-        <textarea class="form-textarea" id="ac-prompt" rows="4" placeholder="You are a helpful AI assistant..."></textarea>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">حداکثر توکن</label>
-          <input class="form-input" id="ac-max-tokens" type="number" value="4096">
-        </div>
-        <div class="form-group" style="display:flex;align-items:flex-end;padding-bottom:14px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-            <input type="checkbox" id="ac-active" checked style="width:18px;height:18px;cursor:pointer">
-            فعال
-          </label>
-        </div>
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-primary" onclick="saveAgentConfig()">💾 ذخیره</button>
+
+      <!-- Wizard actions -->
+      <div class="form-actions" style="display:flex;justify-content:space-between;align-items:center;margin-top:20px;padding-top:14px;border-top:1px solid var(--bd)">
+        <button class="btn" id="wz-prev-btn" onclick="prevWizardStep()" style="display:none">⬅️ قبلی</button>
+        <button class="btn btn-primary" id="wz-next-btn" onclick="nextWizardStep()">بعدی ➡️</button>
+        <button class="btn btn-primary" id="wz-save-btn" onclick="saveAgentConfig()" style="display:none">💾 ذخیره ایجنت</button>
         <button class="btn" onclick="closeModal('modal-agent-config')">انصراف</button>
       </div>
     </div>
@@ -1194,6 +1687,10 @@ function goTab(name, btn) {
   if (name === 'conversations') loadConvTable();
   if (name === 'settings')     loadSettings();
   if (name === 'admin')        loadAdminData();
+  if (name === 'monitoring') {
+    loadMonitoringData();
+    loadSystemLogs();
+  }
 }
 
 /* ─── admin sub-tabs ─────────────────────────────────────────────────── */
@@ -1260,28 +1757,37 @@ async function fetchAgents() {
 function renderAgents(list) {
   const el = $('agents-list');
   if (!list.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">🤖</div><p>Agent یافت نشد</p></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🤖</div><p>عضو فعالی در تیم وجود ندارد</p></div>';
     return;
   }
   const maxRuns = Math.max(...list.map(a => a.runs), 1);
-  el.innerHTML = list.map(a => `
-    <div class="ac">
-      <div class="ac-top">
-        <div class="ac-emoji">${a.icon}</div>
-        <div>
-          <div class="ac-name">${esc(a.role)}</div>
-          <div class="ac-sub">${esc(a.name)}</div>
+  el.innerHTML = list.map(a => {
+    let botBadge = '';
+    if (a.telegram_bot_token) {
+      botBadge = `<span class="tag runs" style="font-size:10px;background:rgba(46,204,113,0.1);color:#2ecc71;border:1px solid rgba(46,204,113,0.2)">🟢 ربات فعال ${a.bot_username ? `(${esc(a.bot_username)})` : ''}</span>`;
+    } else {
+      botBadge = `<span class="tag model" style="font-size:10px;background:rgba(231,76,60,0.1);color:#e74c3c;border:1px solid rgba(231,76,60,0.2)">🔴 بدون ربات</span>`;
+    }
+    
+    return `
+      <div class="ac" style="position:relative">
+        <div class="ac-top">
+          <div class="ac-emoji">${a.icon}</div>
+          <div>
+            <div class="ac-name" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${esc(a.role)} ${botBadge}</div>
+            <div class="ac-sub">${esc(a.name)}</div>
+          </div>
         </div>
+        <div class="tags">
+          <span class="tag model">🔮 ${esc(a.model)}</span>
+          <span class="tag runs">▶ ${fa(a.runs)} اجرا</span>
+          <span class="tag temp">🌡 ${a.temperature}</span>
+        </div>
+        ${a.runs > 0 ? `<div class="bar-bg"><div class="bar-fill" style="width:${Math.round(a.runs/maxRuns*100)}%"></div></div>` : ''}
+        <div class="ac-desc">${esc(a.description)}</div>
       </div>
-      <div class="tags">
-        <span class="tag model">🔮 ${esc(a.model)}</span>
-        <span class="tag runs">▶ ${fa(a.runs)} اجرا</span>
-        <span class="tag temp">🌡 ${a.temperature}</span>
-      </div>
-      ${a.runs > 0 ? `<div class="bar-bg"><div class="bar-fill" style="width:${Math.round(a.runs/maxRuns*100)}%"></div></div>` : ''}
-      <div class="ac-desc">${esc(a.description)}</div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function renderChart(list) {
@@ -1417,7 +1923,111 @@ async function loadSettings() {
       row('دمای Agent',       cfg.agent_temperature) +
       row('دمای ناظر',        cfg.supervisor_temperature) +
       row('سطح لاگ',          cfg.log_level);
+      
+    await loadSettingsDb();
   } catch {}
+}
+
+async function loadSettingsDb() {
+  try {
+    const s = await api('/api/admin/settings');
+    $('set-chief-id').value = s.chief_user_id || '';
+    $('set-group-collab').checked = s.group_collab_enabled === '1';
+    $('set-turn-order').value = s.group_turn_order || '';
+    $('set-ls-key').value = s.langsmith_api_key || '';
+    $('set-ls-project').value = s.langsmith_project || 'ai-telegram-agents';
+    $('set-ls-tracing').checked = s.langsmith_tracing === '1';
+    await loadMemories();
+  } catch (e) {
+    console.error('loadSettingsDb error:', e);
+  }
+}
+
+async function saveSettingsDb() {
+  const body = {
+    settings: {
+      chief_user_id: $('set-chief-id').value.trim(),
+      group_collab_enabled: $('set-group-collab').checked ? '1' : '0',
+      group_turn_order: $('set-turn-order').value.trim(),
+      langsmith_api_key: $('set-ls-key').value.trim(),
+      langsmith_project: $('set-ls-project').value.trim(),
+      langsmith_tracing: $('set-ls-tracing').checked ? '1' : '0'
+    }
+  };
+  try {
+    await api('/api/admin/settings', 'POST', body);
+    toast('✅ تنظیمات عمومی و گروهی ذخیره شد', 3000, 'success');
+    loadSettings();
+  } catch (e) {
+    toast('❌ خطا در ذخیره تنظیمات: ' + e.message, 4000, 'error');
+  }
+}
+
+async function loadMemories() {
+  try {
+    const memories = await api('/api/admin/memories');
+    const container = $('memories-container');
+    if (!memories.length) {
+      container.innerHTML = '<div class="empty" style="padding:10px"><p>هنوز چیزی به خاطر سپرده نشده است 💤</p></div>';
+      return;
+    }
+    
+    const grouped = {};
+    memories.forEach(m => {
+      const key = m.agent_name ? `مخصوص ایجنت: ${m.agent_name}` : 'عمومی (تمامی ایجنت‌ها)';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(m);
+    });
+    
+    let html = '';
+    for (const [groupTitle, items] of Object.entries(grouped)) {
+      const isGeneral = groupTitle.includes('عمومی');
+      const badgeStyle = isGeneral 
+        ? 'background:rgba(52,152,219,0.1);color:#3498db;border:1px solid rgba(52,152,219,0.2)' 
+        : 'background:rgba(155,89,182,0.1);color:#9b59b6;border:1px solid rgba(155,89,182,0.2)';
+        
+      html += `
+        <div style="border: 1px solid var(--bd); border-radius: var(--radius-sm); background: var(--s1); overflow: hidden; margin-bottom:10px">
+          <div style="background: var(--s2); padding: 8px 12px; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--bd);">
+            <span>${esc(groupTitle)}</span>
+            <span class="tag" style="margin:0; ${badgeStyle}">${items.length} یادآوری</span>
+          </div>
+          <div style="padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+      `;
+      
+      items.forEach(item => {
+        html += `
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--bg); padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--bd);">
+            <div style="font-size: 13px; color: var(--fg); flex: 1; text-align: right; direction: rtl;">
+              📌 ${esc(item.content)}
+            </div>
+            <button class="btn btn-sm btn-danger" style="padding: 4px 8px; font-size: 11px; height: auto;" onclick="deleteMemory(${item.id})">🗑️ حذف</button>
+          </div>
+        `;
+      });
+      
+      html += `
+          </div>
+        </div>
+      `;
+    }
+    
+    container.innerHTML = html;
+  } catch (e) {
+    console.error('loadMemories error:', e);
+    $('memories-container').innerHTML = '<div class="empty"><p>❌ خطا در بارگذاری حافظه</p></div>';
+  }
+}
+
+async function deleteMemory(id) {
+  if (!confirm('آیا مطمئن هستید که می‌خواهید این مورد را از حافظه ایجنت پاک کنید؟')) return;
+  try {
+    await api(`/api/admin/memories/${id}`, 'DELETE');
+    toast('✅ یادآوری از حافظه با موفقیت پاک شد', 3000, 'success');
+    await loadMemories();
+  } catch (e) {
+    toast('❌ خطا در حذف یادآوری: ' + e.message, 4000, 'error');
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1505,88 +2115,7 @@ async function deleteProvider(id, name) {
   } catch (e) { toast('❌ ' + e.message, 4000, 'error'); }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   ADMIN — BOT TOKENS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 let _tokens = [];
-
-async function loadTokens() {
-  try {
-    _tokens = await api('/api/admin/tokens');
-    renderTokens();
-  } catch (e) { console.error('loadTokens:', e); }
-}
-
-function renderTokens() {
-  const tbody = $('tokens-tbody');
-  if (!_tokens.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--dim);padding:36px">توکنی ثبت نشده</td></tr>';
-    return;
-  }
-  tbody.innerHTML = _tokens.map(t => `
-    <tr>
-      <td style="color:var(--dim)">${t.id}</td>
-      <td style="font-weight:700">${esc(t.name)}</td>
-      <td style="color:var(--cyan)">${esc(t.bot_username || '—')}</td>
-      <td class="clip" style="font-family:monospace;font-size:11px">${t.token.substring(0,12)}•••</td>
-      <td style="color:var(--dim);font-size:11px">${esc(t.description || '—')}</td>
-      <td>${t.is_active ? '<span class="status-badge active">● فعال</span>' : '<span class="status-badge inactive">● غیرفعال</span>'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-sm btn-success btn-icon" onclick="testToken(${t.id},'${esc(t.name)}')" title="تست توکن">🔌</button>
-        <button class="btn btn-sm btn-icon" onclick="editToken(${t.id})" title="ویرایش">✏️</button>
-        <button class="btn btn-sm btn-icon btn-danger" onclick="deleteToken(${t.id},'${esc(t.name)}')" title="حذف">🗑️</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-function openTokenModal(data) {
-  $('modal-token-title').textContent = data ? 'ویرایش توکن ربات' : 'افزودن توکن ربات';
-  $('tok-edit-id').value = data ? data.id : '';
-  $('tok-name').value = data ? data.name : '';
-  $('tok-username').value = data ? data.bot_username : '';
-  $('tok-token').value = data ? data.token : '';
-  $('tok-desc').value = data ? data.description : '';
-  openModal('modal-token');
-}
-
-async function editToken(id) {
-  const t = _tokens.find(x => x.id === id);
-  if (t) openTokenModal(t);
-}
-
-async function saveToken() {
-  const id  = $('tok-edit-id').value;
-  const name = $('tok-name').value.trim();
-  const tok  = $('tok-token').value.trim();
-  if (!name || !tok) { toast('نام و توکن الزامی است', 3000, 'error'); return; }
-  const body = {
-    name, token: tok,
-    bot_username: $('tok-username').value.trim(),
-    description: $('tok-desc').value.trim(),
-  };
-  try {
-    if (id) {
-      await api('/api/admin/tokens/' + id, 'PUT', body);
-      toast('✅ توکن بروزرسانی شد', 3000, 'success');
-    } else {
-      await api('/api/admin/tokens', 'POST', body);
-      toast('✅ توکن اضافه شد', 3000, 'success');
-    }
-    closeModal('modal-token');
-    loadTokens();
-  } catch (e) { toast('❌ ' + e.message, 4000, 'error'); }
-}
-
-async function deleteToken(id, name) {
-  if (!confirm('آیا از حذف توکن «' + name + '» مطمئنید؟')) return;
-  try {
-    await api('/api/admin/tokens/' + id, 'DELETE');
-    toast('🗑️ توکن حذف شد', 3000, 'success');
-    loadTokens();
-  } catch (e) { toast('❌ ' + e.message, 4000, 'error'); }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ADMIN — AGENT CONFIGS
@@ -1604,7 +2133,7 @@ async function loadAgentConfigs() {
 function renderAgentConfigs() {
   const tbody = $('agent-configs-tbody');
   if (!_agentConfigs.length) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--dim);padding:36px">تنظیماتی ثبت نشده — از دکمه «افزودن تنظیمات» استفاده کنید</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--dim);padding:36px">ایجنت یا رباتی ثبت نشده است — از دکمه «ساخت ایجنت جدید» استفاده کنید</td></tr>';
     return;
   }
   tbody.innerHTML = _agentConfigs.map(c => `
@@ -1616,13 +2145,210 @@ function renderAgentConfigs() {
       <td style="font-size:11px;color:var(--purple)">${esc(c.provider_name || '—')}</td>
       <td style="font-family:monospace;font-size:11px">${esc(c.model || '—')}</td>
       <td style="color:var(--yellow)">${c.temperature}</td>
-      <td>${c.is_active ? '<span class="status-badge active">● فعال</span>' : '<span class="status-badge inactive">● غیرفعال</span>'}</td>
+      <td class="clip" style="font-family:monospace;font-size:11px">${c.telegram_bot_token ? c.telegram_bot_token.substring(0,10) + '•••' : '<span style="color:var(--dim)">—</span>'}</td>
+      <td style="color:var(--cyan);font-size:11px">${esc(c.bot_username || '—')}</td>
+      <td>${(c.telegram_bot_token && c.is_active) ? '<span class="status-badge active">● فعال (آنلاین)</span>' : '<span class="status-badge inactive">● غیرفعال (آفلاین)</span>'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-sm btn-icon" onclick="editAgentConfig(${c.id})" title="ویرایش">✏️</button>
         <button class="btn btn-sm btn-icon btn-danger" onclick="deleteAgentConfig(${c.id},'${esc(c.agent_name)}')" title="حذف">🗑️</button>
       </td>
     </tr>
   `).join('');
+}
+
+const AGENT_TEMPLATES = {
+  writer: {
+    name: 'writer',
+    display: 'نویسنده خلاق (Writer)',
+    icon: '✍️',
+    desc: 'محتوا، ایمیل، داستان و متون متقاعدکننده',
+    prompt: 'You are the Writer Agent. Your role is to generate high-quality content based on the plan provided by the Planner Agent and the original request. Write clearly and professionally.'
+  },
+  critic: {
+    name: 'critic',
+    display: 'منتقد (Critic)',
+    icon: '🔍',
+    desc: 'بازبینی، ویراستاری و بهبود کیفیت متن',
+    prompt: 'You are the Critic Agent. Your role is to review the draft content generated by the Writer Agent. Critique it constructively. Look for errors, omissions, tone mismatch, or logic issues, and suggest improvements.'
+  },
+  analyst: {
+    name: 'analyst',
+    display: 'تحلیلگر (Analyst)',
+    icon: '📊',
+    desc: 'مقایسه داده‌ها، ارزیابی گزینه‌ها و تحلیل ساختاری',
+    prompt: 'You are the Analyst Agent. Your role is to compare, evaluate, and analyze data or options to assist in decision making.'
+  },
+  planner: {
+    name: 'planner',
+    display: 'برنامه‌ریز (Planner)',
+    icon: '📋',
+    desc: 'طراحی سناریو، نقشه راه و مراحل کار پروژه',
+    prompt: 'You are the Planner Agent. Your role is to analyze the user\'s request and construct a detailed plan for the Writer Agent. Outline what points should be covered, the structure of the response, and any specific details to include. Keep it concise. Do not write the final response yourself.'
+  },
+  researcher: {
+    name: 'researcher',
+    display: 'محقق (Researcher)',
+    icon: '🔬',
+    desc: 'تحقیق علمی، جمع‌آوری اطلاعات و وب‌گردی',
+    prompt: 'You are the Researcher Agent. Your role is to search for information, synthesize facts, and gather details relevant to the user request.'
+  },
+  supervisor: {
+    name: 'supervisor',
+    display: 'ناظر (Supervisor)',
+    icon: '🧠',
+    desc: 'انتخاب تیم، هماهنگ‌کننده و ترکیب پاسخ نهایی',
+    prompt: 'You are the Supervisor Agent. Your role is to oversee the entire system workflow, review the outputs from the Planner, Writer, and Critic, and synthesize the final response to the user. You are the ONLY agent authorized to send the final response directly to the user.'
+  }
+};
+
+let currentStep = 1;
+
+function showStep(stepNum) {
+  currentStep = stepNum;
+  $('wz-step-1').style.display = stepNum === 1 ? 'block' : 'none';
+  $('wz-step-2').style.display = stepNum === 2 ? 'block' : 'none';
+  $('wz-step-3').style.display = stepNum === 3 ? 'block' : 'none';
+  
+  $('wz-step-1-indicator').style.color = stepNum === 1 ? 'var(--blue)' : 'var(--dim)';
+  $('wz-step-1-indicator').style.fontWeight = stepNum === 1 ? '700' : '500';
+  
+  $('wz-step-2-indicator').style.color = stepNum === 2 ? 'var(--blue)' : 'var(--dim)';
+  $('wz-step-2-indicator').style.fontWeight = stepNum === 2 ? '700' : '500';
+  
+  $('wz-step-3-indicator').style.color = stepNum === 3 ? 'var(--blue)' : 'var(--dim)';
+  $('wz-step-3-indicator').style.fontWeight = stepNum === 3 ? '700' : '500';
+  
+  $('wz-prev-btn').style.display = stepNum > 1 ? 'inline-flex' : 'none';
+  $('wz-next-btn').style.display = stepNum < 3 ? 'inline-flex' : 'none';
+  $('wz-save-btn').style.display = stepNum === 3 ? 'inline-flex' : 'none';
+}
+
+function nextWizardStep() {
+  if (currentStep === 1) {
+    if (!$('ac-name').value.trim()) {
+      toast('نام انگلیسی ایجنت الزامی است', 3000, 'error');
+      return;
+    }
+    showStep(2);
+  } else if (currentStep === 2) {
+    showStep(3);
+  }
+}
+
+function prevWizardStep() {
+  if (currentStep > 1) {
+    showStep(currentStep - 1);
+  }
+}
+
+function applyAgentTemplate(val) {
+  if (!val || !AGENT_TEMPLATES[val]) return;
+  const t = AGENT_TEMPLATES[val];
+  $('ac-name').value = t.name;
+  $('ac-display').value = t.display;
+  $('ac-icon').value = t.icon;
+  $('ac-desc').value = t.desc;
+  $('ac-prompt').value = t.prompt;
+}
+
+function selectTemplateCard(tplName) {
+  document.querySelectorAll('.ac-tpl-card').forEach(el => {
+    el.style.borderColor = 'var(--bd)';
+    el.style.boxShadow = 'none';
+  });
+  
+  const clicked = event.currentTarget;
+  clicked.style.borderColor = 'var(--blue)';
+  clicked.style.boxShadow = '0 0 10px rgba(72,149,239,0.15)';
+  
+  if (tplName === 'custom') {
+    $('ac-name').value = '';
+    $('ac-display').value = '';
+    $('ac-icon').value = '🤖';
+    $('ac-desc').value = '';
+    $('ac-prompt').value = '';
+  } else {
+    applyAgentTemplate(tplName);
+  }
+  
+  setTimeout(() => {
+    nextWizardStep();
+  }, 350);
+}
+
+async function generateAgentWithAI() {
+  const desc = $('ac-ai-desc').value.trim();
+  if (!desc) {
+    toast('لطفاً توصیف ایجنت را وارد کنید', 3000, 'error');
+    return;
+  }
+  const btn = $('ac-ai-btn');
+  btn.disabled = true;
+  btn.textContent = 'در حال تولید... ⏳';
+  try {
+    const res = await api('/api/admin/generate-agent-prompt', 'POST', { description: desc });
+    $('ac-name').value = res.agent_name || '';
+    $('ac-display').value = res.display_name || '';
+    $('ac-icon').value = res.icon || '🤖';
+    $('ac-desc').value = res.description || '';
+    $('ac-prompt').value = res.system_prompt || '';
+    if (res.temperature != null) $('ac-temp').value = res.temperature;
+    if (res.max_tokens != null) $('ac-max-tokens').value = res.max_tokens;
+    
+    toast('✨ مشخصات ایجنت با موفقیت تولید شد!', 3000, 'success');
+    
+    // Highlight custom card or clear other cards since it's custom
+    document.querySelectorAll('.ac-tpl-card').forEach(el => {
+      el.style.borderColor = 'var(--bd)';
+      el.style.boxShadow = 'none';
+    });
+    
+    // Auto advance to step 2 after success
+    setTimeout(() => {
+      showStep(2);
+    }, 800);
+  } catch (e) {
+    toast('❌ خطا: ' + e.message, 4000, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'تولید 🪄';
+  }
+}
+
+async function onProviderChange(providerId) {
+  const dl = $('ac-model-list');
+  dl.innerHTML = '';
+  if (!providerId) return;
+  try {
+    const models = await api('/api/admin/models?provider_id=' + providerId);
+    models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      dl.appendChild(opt);
+    });
+  } catch (e) {
+    console.error('onProviderChange error:', e);
+  }
+}
+
+async function testAgentModelConnection() {
+  const providerId = $('ac-provider').value;
+  const model = $('ac-model').value.trim();
+  if (!providerId) { toast('لطفاً ابتدا ارائه‌دهنده را انتخاب کنید', 3000, 'error'); return; }
+  if (!model) { toast('لطفاً نام مدل را وارد کنید', 3000, 'error'); return; }
+  
+  const btn = $('btn-test-model');
+  btn.disabled = true;
+  btn.textContent = 'در حال تست... ⏳';
+  try {
+    const res = await api('/api/admin/test-connection', 'POST', { provider_id: parseInt(providerId), model });
+    toast('✅ اتصال موفق! پاسخ: ' + res.response_preview + ' (تأخیر: ' + res.latency + ' ثانیه)', 5000, 'success');
+  } catch (e) {
+    toast('❌ خطا: ' + e.message, 6000, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔌 تست اتصال مدل';
+  }
 }
 
 function populateProviderSelect() {
@@ -1635,7 +2361,14 @@ function populateProviderSelect() {
 
 function openAgentConfigModal(data) {
   populateProviderSelect();
-  $('modal-ac-title').textContent = data ? 'ویرایش تنظیمات Agent' : 'افزودن تنظیمات Agent';
+  $('ac-ai-desc').value = '';
+  
+  document.querySelectorAll('.ac-tpl-card').forEach(el => {
+    el.style.borderColor = 'var(--bd)';
+    el.style.boxShadow = 'none';
+  });
+  
+  $('modal-ac-title').textContent = data ? 'ویرایش تنظیمات Agent' : 'ساخت ایجنت جدید (مرحله به مرحله)';
   $('ac-edit-id').value = data ? data.id : '';
   $('ac-name').value = data ? data.agent_name : '';
   $('ac-display').value = data ? data.display_name : '';
@@ -1647,6 +2380,15 @@ function openAgentConfigModal(data) {
   $('ac-prompt').value = data ? data.system_prompt : '';
   $('ac-max-tokens').value = data ? data.max_tokens : 4096;
   $('ac-active').checked = data ? !!data.is_active : true;
+  $('ac-bot-token').value = data && data.telegram_bot_token ? data.telegram_bot_token : '';
+  
+  if (data && data.provider_id) {
+    onProviderChange(data.provider_id);
+  } else {
+    $('ac-model-list').innerHTML = '';
+  }
+  
+  showStep(1);
   openModal('modal-agent-config');
 }
 
@@ -1670,6 +2412,7 @@ async function saveAgentConfig() {
     system_prompt: $('ac-prompt').value,
     max_tokens: parseInt($('ac-max-tokens').value) || 4096,
     is_active: $('ac-active').checked,
+    telegram_bot_token: $('ac-bot-token').value.trim() || null,
   };
   try {
     if (id) {
@@ -1762,7 +2505,6 @@ function doImport() {
 /* ─── load all admin data ────────────────────────────────────────────── */
 async function loadAdminData() {
   await loadProviders();
-  await loadTokens();
   await loadAgentConfigs();
   await loadAdminStats();
 }
@@ -1798,9 +2540,76 @@ fetchAgents();
 fetchConversations();
 startSSE();
 
+async function loadMonitoringData() {
+  try {
+    const data = await api('/api/admin/health-check');
+    $('mon-cpu').textContent = data.server.cpu_percent.toFixed(1) + '%';
+    $('mon-ram').textContent = data.server.memory_percent.toFixed(1) + '%';
+    
+    let uptime = data.server.uptime_seconds;
+    let h = Math.floor(uptime / 3600);
+    let m = Math.floor((uptime % 3600) / 60);
+    let s = uptime % 60;
+    $('mon-uptime').textContent = `${h} ساعت و ${m} دقیقه و ${s} ثانیه`;
+    
+    const bList = $('mon-bots-list');
+    if (!data.bots.length) {
+      bList.innerHTML = '<div style="color:var(--dim);font-size:11px">رباتی در دیتابیس فعال نیست.</div>';
+    } else {
+      bList.innerHTML = data.bots.map(b => `
+        <div style="display:flex;justify-content:space-between;align-items:center;background:var(--s2);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--bd)">
+          <span>🤖 <strong>${esc(b.name)}</strong> <span style="font-size:11px;color:var(--dim)">(${esc(b.username)})</span></span>
+          <span class="tag ${b.status === 'online' ? 'runs' : 'model'}" style="font-size:10px">${b.status === 'online' ? '🟢 متصل' : '🔴 غیرفعال'}</span>
+        </div>
+      `).join('');
+    }
+    
+    const pList = $('mon-providers-list');
+    if (!data.providers.length) {
+      pList.innerHTML = '<div style="color:var(--dim);font-size:11px">ارائه‌دهنده‌ای ثبت نشده است.</div>';
+    } else {
+      pList.innerHTML = data.providers.map(p => `
+        <div style="display:flex;justify-content:space-between;align-items:center;background:var(--s2);padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--bd)">
+          <span>🌐 <strong>${esc(p.name)}</strong></span>
+          <div style="display:flex;align-items:center;gap:10px">
+            ${p.latency_ms > 0 ? `<span style="font-size:11px;color:var(--dim)">تأخیر: ${p.latency_ms}ms</span>` : ''}
+            <span class="tag ${p.status === 'online' ? 'runs' : (p.status === 'disabled' ? 'model' : 'model')}" style="font-size:10px">
+              ${p.status === 'online' ? '🟢 آنلاین' : (p.status === 'disabled' ? '⚪️ غیرفعال' : '🔴 آفلاین')}
+            </span>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (e) {
+    console.error('loadMonitoringData:', e);
+  }
+}
+
+async function loadSystemLogs() {
+  try {
+    const data = await api('/api/admin/system-logs');
+    const con = $('mon-console');
+    if (!con) return;
+    if (!data.logs || !data.logs.length) {
+      con.textContent = 'کنسول خالی است یا فایلی یافت نشد.';
+      return;
+    }
+    con.textContent = data.logs.join('\n');
+    con.scrollTop = con.scrollHeight;
+  } catch (e) {
+    console.error('loadSystemLogs:', e);
+  }
+}
+
 setInterval(fetchStats, 10000);
 setInterval(fetchAgents, 15000);
 setInterval(fetchConversations, 20000);
+setInterval(() => {
+  if ($('page-monitoring') && $('page-monitoring').classList.contains('active')) {
+    loadMonitoringData();
+    loadSystemLogs();
+  }
+}, 5000);
 </script>
 </body>
 </html>
@@ -1816,7 +2625,23 @@ def _agent_rows():
         from utils.agent_loader import discover_agents
         agents = discover_agents()
         for name, ag in agents.items():
-            # Use instance attrs (dynamic, DB-backed) with fallback to class attrs
+            if not getattr(ag, "is_active", True):
+                continue
+            
+            token = None
+            bot_user = None
+            try:
+                from core.admin_db import get_agent_config_by_name
+                cfg = get_agent_config_by_name(name)
+                if cfg:
+                    token = cfg.get("telegram_bot_token")
+                    bot_user = cfg.get("bot_username")
+            except Exception:
+                pass
+
+            if not token:
+                continue
+
             rows.append({
                 "name":        name,
                 "icon":        getattr(ag, "icon", None) or getattr(ag, "ICON", "🤖"),
@@ -1828,6 +2653,8 @@ def _agent_rows():
                 "max_tokens":  getattr(ag, "max_tokens", 4096),
                 "is_active":   getattr(ag, "is_active", True),
                 "runs":        stats.agent_runs.get(name, 0),
+                "telegram_bot_token": token,
+                "bot_username": bot_user,
             })
     except Exception:
         pass
@@ -1851,6 +2678,55 @@ def _conversations():
 
 # ── FastAPI routes ──────────────────────────────────────────────────────────
 
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    return _LOGIN_HTML
+
+
+@app.post("/api/auth/login")
+async def auth_login(body: LoginRequest, response: Response):
+    from core.admin_db import get_setting
+    stored_user = get_setting("panel_username", "admin")
+    stored_hash = get_setting("panel_password_hash", _hash_pw("admin"))
+    if body.username == stored_user and _hash_pw(body.password) == stored_hash:
+        token = _create_session()
+        response.set_cookie(
+            "ra_session", token,
+            max_age=SESSION_LIFETIME, httponly=True, samesite="lax", path="/"
+        )
+        return {"status": "ok"}
+    return JSONResponse({"detail": "Invalid credentials"}, status_code=401)
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(response: Response):
+    response.delete_cookie("ra_session", path="/")
+    return {"status": "ok"}
+
+
+@app.post("/api/auth/change-credentials")
+async def change_credentials(body: ChangeCredentialsRequest):
+    from core.admin_db import get_setting, set_setting
+    stored_hash = get_setting("panel_password_hash", _hash_pw("admin"))
+    if _hash_pw(body.current_password) != stored_hash:
+        return JSONResponse({"detail": "رمز عبور فعلی اشتباه است"}, status_code=400)
+    if not body.new_username.strip():
+        return JSONResponse({"detail": "نام کاربری نمی‌تواند خالی باشد"}, status_code=400)
+    if len(body.new_password) < 4:
+        return JSONResponse({"detail": "رمز عبور باید حداقل ۴ کاراکتر باشد"}, status_code=400)
+    set_setting("panel_username", body.new_username.strip())
+    set_setting("panel_password_hash", _hash_pw(body.new_password))
+    # Invalidate all existing sessions
+    _sessions.clear()
+    return {"status": "ok"}
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    from core.admin_db import get_setting
+    return {"username": get_setting("panel_username", "admin")}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return _HTML
@@ -1871,12 +2747,7 @@ async def health():
 
 @app.get("/api/stats")
 async def api_stats():
-    return {
-        "total_messages":    stats.total_messages,
-        "total_errors":      stats.total_errors,
-        "avg_response_time": round(stats.avg_response_time, 2) if stats.avg_response_time else None,
-        "uptime_human":      stats.uptime_human(),
-    }
+    return stats.to_dict()
 
 
 @app.get("/api/agents")
@@ -1939,6 +2810,7 @@ from core.admin_db import (
     get_all_agent_configs, get_agent_config, update_agent_config, delete_agent_config,
     upsert_agent_config,
     get_admin_stats, export_all, import_all,
+    get_all_settings, set_setting,
 )
 
 
@@ -2009,6 +2881,7 @@ async def create_token(body: TokenCreate):
             name=body.name, token=body.token,
             bot_username=body.bot_username, description=body.description,
             is_active=body.is_active,
+            agent_config_id=body.agent_config_id,
         )
         return {"id": tid, "status": "created"}
     except Exception as e:
@@ -2052,6 +2925,22 @@ async def list_agent_configs():
 @app.post("/api/admin/agent-configs")
 async def create_agent_config(body: AgentConfigCreate):
     try:
+        # Resolve bot username if token is provided
+        bot_username = None
+        token_str = body.telegram_bot_token.strip() if body.telegram_bot_token else ""
+        if token_str:
+            try:
+                import urllib.request
+                import json
+                url = f"https://api.telegram.org/bot{token_str}/getMe"
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    res_data = json.loads(resp.read())
+                    if res_data.get("ok"):
+                        bot_username = "@" + res_data["result"].get("username", "")
+            except Exception as e:
+                logger.warning(f"Failed to fetch bot username on create: {e}")
+
         cid = upsert_agent_config(
             agent_name=body.agent_name, display_name=body.display_name,
             icon=body.icon, description=body.description,
@@ -2059,6 +2948,8 @@ async def create_agent_config(body: AgentConfigCreate):
             temperature=body.temperature, system_prompt=body.system_prompt,
             max_tokens=body.max_tokens, is_active=body.is_active,
             extra_config=body.extra_config,
+            telegram_bot_token=token_str or None,
+            bot_username=bot_username,
         )
         return {"id": cid, "status": "created"}
     except Exception as e:
@@ -2075,13 +2966,40 @@ async def get_agent_config_detail(cid: int):
 
 @app.put("/api/admin/agent-configs/{cid}")
 async def update_agent_config_route(cid: int, body: AgentConfigUpdate):
-    fields = {k: v for k, v in body.dict().items() if v is not None}
-    if not fields:
-        return JSONResponse(status_code=400, content={"detail": "فیلدی ارسال نشد"})
-    ok = update_agent_config(cid, **fields)
-    if not ok:
-        return JSONResponse(status_code=404, content={"detail": "یافت نشد"})
-    return {"status": "updated"}
+    try:
+        # Resolve bot username if token is provided
+        bot_username = None
+        token_str = body.telegram_bot_token.strip() if body.telegram_bot_token is not None else None
+        
+        # If token is provided, verify it via Telegram API
+        if token_str:
+            try:
+                import urllib.request
+                import json
+                url = f"https://api.telegram.org/bot{token_str}/getMe"
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=4) as resp:
+                    res_data = json.loads(resp.read())
+                    if res_data.get("ok"):
+                        bot_username = "@" + res_data["result"].get("username", "")
+            except Exception as e:
+                logger.warning(f"Failed to fetch bot username on update: {e}")
+        
+        fields = {k: v for k, v in body.dict().items() if v is not None and k != "telegram_bot_token"}
+        if token_str is not None:
+            fields["telegram_bot_token"] = token_str or None
+            fields["bot_username"] = bot_username
+            
+        if not fields:
+            return JSONResponse(status_code=400, content={"detail": "فیلدی ارسال نشد"})
+            
+        ok = update_agent_config(cid, **fields)
+        if not ok:
+            return JSONResponse(status_code=404, content={"detail": "یافت نشد"})
+            
+        return {"status": "updated"}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"detail": str(e)})
 
 
 @app.delete("/api/admin/agent-configs/{cid}")
@@ -2097,6 +3015,107 @@ async def delete_agent_config_route(cid: int):
 @app.get("/api/admin/stats")
 async def admin_stats():
     return get_admin_stats()
+
+
+# ── Global Settings & Dynamic Models ───────────────────────────────────────
+
+@app.get("/api/admin/settings")
+async def list_settings():
+    return get_all_settings()
+
+
+@app.post("/api/admin/settings")
+async def save_settings(body: SettingsUpdate):
+    try:
+        for k, v in body.settings.items():
+            set_setting(k, str(v))
+        
+        # Re-apply LangSmith tracing parameters dynamically
+        from utils.config import Config
+        Config.setup_langsmith()
+        
+        return {"status": "success"}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"detail": str(e)})
+
+
+@app.get("/api/admin/memories")
+async def get_memories():
+    try:
+        from core.admin_db import get_conn
+        with get_conn() as conn:
+            rows = conn.execute("SELECT * FROM memories ORDER BY created_at DESC").fetchall()
+            return [dict(r) for r in rows]
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"detail": str(e)})
+
+
+@app.delete("/api/admin/memories/{id}")
+async def delete_memory(id: int):
+    try:
+        from core.admin_db import get_conn
+        with get_conn() as conn:
+            conn.execute("DELETE FROM memories WHERE id = ?", (id,))
+        return {"status": "success"}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"detail": str(e)})
+
+
+@app.get("/api/admin/models")
+async def list_provider_models(provider_id: Optional[int] = None):
+    if not provider_id:
+        return []
+    import requests
+    from core.admin_db import get_provider
+    prov = get_provider(provider_id)
+    if not prov:
+        return []
+    
+    base_url = prov["base_url"].rstrip('/')
+    api_key = prov.get("api_key", "")
+    
+    url = f"{base_url}/models"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+        
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            if isinstance(data, dict) and "data" in data:
+                models = [m["id"] for m in data["data"]]
+                return sorted(models)
+            elif isinstance(data, list):
+                return sorted(data)
+    except Exception as e:
+        logger.warning(f"Failed to fetch models from {url}: {e}")
+        
+    if "localhost" in base_url or "127.0.0.1" in base_url:
+        ollama_url = f"{base_url.rsplit('/', 1)[0]}/api/tags"
+        try:
+            res = requests.get(ollama_url, timeout=3)
+            if res.status_code == 200:
+                data = res.json()
+                if "models" in data:
+                    models = [m["name"] for m in data["models"]]
+                    return sorted(models)
+        except Exception:
+            pass
+            
+    name_lower = prov["name"].lower()
+    if "openai" in name_lower:
+        return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"]
+    elif "bynara" in name_lower:
+        return ["mistralai/mistral-medium-3", "meta-llama/llama-3-70b-instruct", "openai/gpt-4o"]
+    elif "gemini" in name_lower or "google" in name_lower:
+        return ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"]
+    elif "anthropic" in name_lower or "claude" in name_lower:
+        return ["claude-3-5-sonnet-20240620", "claude-3-opus-20240229", "claude-3-haiku-20240307"]
+    elif "groq" in name_lower:
+        return ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it"]
+    
+    return ["gpt-4o-mini"]
 
 
 # ── Test Provider Connection ────────────────────────────────────────────────
@@ -2194,6 +3213,172 @@ async def import_config(body: ImportRequest):
         return {"status": "imported", "counts": counts}
     except Exception as e:
         return JSONResponse(status_code=400, content={"detail": str(e)})
+
+
+@app.post("/api/admin/generate-agent-prompt")
+async def generate_agent_prompt(body: GenerateAgentRequest):
+    if not body.description.strip():
+        return JSONResponse(status_code=400, content={"detail": "توضیحات نمی‌تواند خالی باشد"})
+    
+    from services.llm_service import create_llm
+    from langchain_core.messages import SystemMessage, HumanMessage
+    import json
+    
+    prompt = f"""You are an AI Agent Config Generator. Based on the user's brief description, generate a complete profile configuration for a specialized AI agent.
+    
+    User Description: "{body.description}"
+    
+    You must output a valid JSON object ONLY. No markdown formatting, no backticks, no code fence, no text before or after.
+    
+    JSON Schema:
+    {{
+      "agent_name": "lowercase_snake_case_english_name",
+      "display_name": "Friendly Persian display name",
+      "icon": "One single emoji related to the role",
+      "description": "Short Persian description of what this agent does",
+      "system_prompt": "Highly detailed system prompt in English instructing the agent on its role, persona, and rules of engagement.",
+      "temperature": 0.7,
+      "max_tokens": 4096
+    }}
+    
+    Ensure the system_prompt is comprehensive and professional.
+    """
+    
+    try:
+        llm = create_llm()
+        response = llm.invoke([
+            SystemMessage(content="You are a JSON generator. Respond only with valid JSON."),
+            HumanMessage(content=prompt)
+        ])
+        
+        content = response.content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+        
+        parsed = json.loads(content)
+        return parsed
+    except Exception as e:
+        logger.error(f"Error generating agent prompt: {e}")
+        return JSONResponse(status_code=500, content={"detail": f"خطا در تولید مشخصات ایجنت: {str(e)}"})
+
+
+@app.get("/api/admin/system-logs")
+async def get_system_logs(lines: int = 150):
+    """Read the last N lines of logs/app.log."""
+    import os
+    log_file = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "logs", "app.log")
+    )
+    if not os.path.exists(log_file):
+        log_file = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "logs", "app.log")
+        )
+        
+    if not os.path.exists(log_file):
+        return {"logs": ["Log file not found."]}
+        
+    try:
+        with open(log_file, "r", encoding="utf-8") as f:
+            all_lines = f.readlines()
+            last_n = [l.strip() for l in all_lines[-lines:]]
+            return {"logs": last_n}
+    except Exception as e:
+        return {"logs": [f"Error reading logs: {e}"]}
+
+
+@app.get("/api/admin/health-check")
+async def get_health_check():
+    import time
+    import requests
+    from core.admin_db import get_active_tokens, get_all_providers
+    
+    cpu = 0.0
+    mem_percent = 0.0
+    try:
+        import psutil
+        cpu = psutil.cpu_percent()
+        mem_percent = psutil.virtual_memory().percent
+    except ImportError:
+        pass
+        
+    uptime = int(time.time() - stats.start_time)
+    
+    server_status = {
+        "status": "healthy",
+        "cpu_percent": cpu,
+        "memory_percent": mem_percent,
+        "uptime_seconds": uptime,
+        "db_connected": True,
+    }
+    
+    providers_status = []
+    providers = get_all_providers()
+    for p in providers:
+        if not p["is_active"]:
+            providers_status.append({
+                "name": p["name"],
+                "status": "disabled",
+                "latency_ms": 0,
+            })
+            continue
+        
+        status = "offline"
+        latency = 9999
+        t0 = time.time()
+        try:
+            url = p["base_url"]
+            res = requests.get(url, timeout=3)
+            status = "online"
+            latency = int((time.time() - t0) * 1000)
+        except Exception:
+            status = "offline"
+            
+        providers_status.append({
+            "name": p["name"],
+            "status": status,
+            "latency_ms": latency if status == "online" else 0,
+        })
+        
+    bots_status = []
+    tokens = get_active_tokens()
+    for t in tokens:
+        status = "offline"
+        try:
+            url = f"https://api.telegram.org/bot{t['token']}/getMe"
+            res = requests.get(url, timeout=3)
+            if res.status_code == 200:
+                status = "online"
+        except Exception:
+            status = "offline"
+            
+        bots_status.append({
+            "name": t["name"],
+            "username": t.get("bot_username", "—"),
+            "status": status,
+        })
+        
+    from utils.agent_loader import discover_agents
+    loaded_agents = []
+    try:
+        agents = discover_agents()
+        for name, ag in agents.items():
+            loaded_agents.append({
+                "name": name,
+                "display_name": getattr(ag, "display_name", name),
+                "is_active": getattr(ag, "is_active", True),
+            })
+    except Exception:
+        pass
+        
+    return {
+        "server": server_status,
+        "providers": providers_status,
+        "bots": bots_status,
+        "agents": loaded_agents,
+    }
 
 
 # ── start_panel helper (called from main.py) ────────────────────────────────
