@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RickAgent — AI Multi-Agent Telegram Bot</title>
+    <meta name="description" content="Production-ready multi-agent AI system for Telegram, built with LangGraph. Zero-registration agents, multi-provider support, Persian web panel.">
+    <meta property="og:title" content="RickAgent — AI Multi-Agent Telegram Bot">
+    <meta property="og:description" content="Drop a Python file into agents/ — it's live. No registration, no restart, no config changes.">
+    <meta property="og:url" content="https://m4tinbeigi-official.github.io/RickAgent">
+    <meta property="og:type" content="website">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-card-hover: #1a1a26;
+            --border: #1e1e2e;
+            --text: #e4e4ef;
+            --text-muted: #8888a0;
+            --accent: #6c5ce7;
+            --accent-light: #a29bfe;
+            --green: #00d2d3;
+            --orange: #ffa502;
+            --pink: #ff6b9d;
+            --blue: #54a0ff;
+            --yellow: #feca57;
+            --red: #ff6b6b;
+            --gradient-1: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            --gradient-2: linear-gradient(135deg, #00d2d3, #54a0ff);
+            --gradient-3: linear-gradient(135deg, #ff6b9d, #ffa502);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                linear-gradient(rgba(108, 92, 231, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(108, 92, 231, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            z-index: -1;
+        }
+
+        .bg-glow {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            filter: blur(150px);
+            opacity: 0.15;
+            z-index: -1;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .bg-glow-1 {
+            top: -200px;
+            right: -200px;
+            background: var(--accent);
+        }
+
+        .bg-glow-2 {
+            bottom: -200px;
+            left: -200px;
+            background: var(--green);
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-50px, 50px); }
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 16px 0;
+            background: rgba(10, 10, 15, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+        }
+
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent-light);
+        }
+
+        .nav-cta {
+            background: var(--gradient-1);
+            color: white !important;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .nav-cta:hover {
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Hero */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding-top: 80px;
+        }
+
+        .hero-content {
+            text-align: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(108, 92, 231, 0.1);
+            border: 1px solid rgba(108, 92, 231, 0.3);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            color: var(--accent-light);
+            margin-bottom: 32px;
+            font-weight: 500;
+        }
+
+        .hero-badge .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            letter-spacing: -0.02em;
+        }
+
+        .hero h1 .gradient-text {
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 650px;
+            margin: 0 auto 40px;
+            line-height: 1.8;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 20px rgba(108, 92, 231, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(108, 92, 231, 0.5);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .hero-terminal {
+            margin-top: 60px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: left;
+        }
+
+        .terminal-header {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.red { background: var(--red); }
+        .terminal-dot.yellow { background: var(--yellow); }
+        .terminal-dot.green { background: var(--green); }
+
+        .terminal-body {
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .terminal-body .comment { color: var(--text-muted); }
+        .terminal-body .cmd { color: var(--green); }
+        .terminal-body .output { color: var(--accent-light); }
+
+        /* Sections */
+        section {
+            padding: 100px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .section-header .tag {
+            display: inline-block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-light);
+            margin-bottom: 16px;
+        }
+
+        .section-header h2 {
+            font-size: clamp(2rem, 4vw, 3rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .section-header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 16px auto 0;
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+            transform: translateY(-4px);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        /* Architecture */
+        .arch-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .arch-flow {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .arch-step {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            transition: all 0.3s;
+        }
+
+        .arch-step:hover {
+            border-color: var(--accent);
+            background: var(--bg-card-hover);
+        }
+
+        .arch-step-num {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--gradient-1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .arch-step h4 {
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        .arch-step p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        .arch-arrow {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+        }
+
+        /* Agents Showcase */
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        .agent-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .agent-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(108, 92, 231, 0.15);
+        }
+
+        .agent-emoji {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+
+        .agent-card h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .agent-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .agent-card .tag-chip {
+            display: inline-block;
+            margin-top: 12px;
+            padding: 4px 12px;
+            background: rgba(108, 92, 231, 0.1);
+            border: 1px solid rgba(108, 92, 231, 0.2);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--accent-light);
+            font-weight: 500;
+        }
+
+        /* Providers */
+        .providers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .provider-chip {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+        }
+
+        .provider-chip:hover {
+            border-color: var(--accent);
+            background: var(--bg-card-hover);
+        }
+
+        .provider-chip .icon {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        /* Quick Start */
+        .quickstart-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .qs-step {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .qs-num {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--gradient-1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+
+        .qs-content h4 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .code-block {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 18px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--green);
+            overflow-x: auto;
+        }
+
+        .code-block .comment-code { color: var(--text-muted); }
+
+        /* Code Example */
+        .code-example {
+            max-width: 700px;
+            margin: 40px auto 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .code-example-header {
+            padding: 12px 20px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .code-example-body {
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+            overflow-x: auto;
+        }
+
+        .code-example-body .keyword { color: var(--pink); }
+        .code-example-body .class-name { color: var(--yellow); }
+        .code-example-body .string { color: var(--green); }
+        .code-example-body .attr { color: var(--blue); }
+        .code-example-body .comment-c { color: var(--text-muted); }
+
+        /* Stats */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin-bottom: 60px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 900;
+            background: var(--gradient-1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        /* Commands Table */
+        .commands-table {
+            width: 100%;
+            max-width: 700px;
+            margin: 0 auto;
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+
+        .commands-table td {
+            padding: 14px 20px;
+            background: var(--bg-card);
+        }
+
+        .commands-table tr td:first-child {
+            border-radius: 10px 0 0 10px;
+            border-left: 1px solid var(--border);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--green);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .commands-table tr td:last-child {
+            border-radius: 0 10px 10px 0;
+            border-right: 1px solid var(--border);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Footer */
+        footer {
+            padding: 60px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--accent-light);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 20px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .hero h1 { font-size: 2.2rem; }
+            .features-grid { grid-template-columns: 1fr; }
+            .agents-grid { grid-template-columns: repeat(2, 1fr); }
+            .providers-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 480px) {
+            .agents-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Smooth scroll */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Section divider */
+        .divider {
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <!-- Navigation -->
+    <nav>
+        <div class="container">
+            <a href="#" class="nav-logo">🤖 RickAgent</a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#agents">Agents</a></li>
+                <li><a href="#quickstart">Quick Start</a></li>
+                <li><a href="https://github.com/m4tinbeigi-official/RickAgent" class="nav-cta">GitHub ⭐</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero" id="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="dot"></span>
+                    Powered by LangGraph
+                </div>
+                <h1>
+                    The AI Agent Team<br>
+                    <span class="gradient-text">That Runs Itself</span>
+                </h1>
+                <p>
+                    A production-ready multi-agent AI system for Telegram. Drop a Python file into <code>agents/</code> — it's live. No registration, no restart, no config changes.
+                </p>
+                <div class="hero-buttons">
+                    <a href="#quickstart" class="btn btn-primary">🚀 Get Started</a>
+                    <a href="https://github.com/m4tinbeigi-official/RickAgent" class="btn btn-secondary">📦 View on GitHub</a>
+                </div>
+
+                <div class="hero-terminal">
+                    <div class="terminal-header">
+                        <span class="terminal-dot red"></span>
+                        <span class="terminal-dot yellow"></span>
+                        <span class="terminal-dot green"></span>
+                    </div>
+                    <div class="terminal-body">
+                        <span class="comment"># Clone & run — that's it</span><br>
+                        <span class="cmd">$ git clone https://github.com/m4tinbeigi-official/RickAgent.git</span><br>
+                        <span class="cmd">$ cd RickAgent</span><br>
+                        <span class="cmd">$ python3 install.py</span><br><br>
+                        <span class="output">✓ AI provider configured</span><br>
+                        <span class="output">✓ Telegram bot connected</span><br>
+                        <span class="output">✓ 6 agents loaded — ready!</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Features -->
+    <section id="features">
+        <div class="container">
+            <div class="section-header">
+                <span class="tag">Features</span>
+                <h2>Why RickAgent?</h2>
+                <p>Everything you need to run a multi-agent AI system on Telegram, out of the box.</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(0, 210, 211, 0.1);">⚡</div>
+                    <h3>Zero-Registration Agents</h3>
+                    <p>Drop a <code>.py</code> file into <code>agents/</code> — auto-discovered on next run. No registry, no config file, no restart needed.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(108, 92, 231, 0.1);">🧠</div>
+                    <h3>LangGraph Orchestration</h3>
+                    <p>Supervisor agent analyzes each request and picks the best team of specialist agents to handle it. Multi-agent routing, not single-agent guessing.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(255, 165, 2, 0.1);">🔌</div>
+                    <h3>Any OpenAI-Compatible API</h3>
+                    <p>Bynara, OpenAI, Groq, Together, Anthropic, OpenRouter, Google Gemini, or any custom endpoint. Switch providers at runtime with <code>/setprovider</code>.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(255, 107, 157, 0.1);">🌐</div>
+                    <h3>Persian Web Panel</h3>
+                    <p>RTL dashboard with Vazirmatn font, live SSE activity feed, agent configuration, provider management, and conversation history.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(254, 202, 87, 0.1);">🛡️</div>
+                    <h3>Smart Rate Limiting</h3>
+                    <p>Detects 429 errors, tells users exactly when limits reset. Per-chat cooldowns with configurable intervals.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(84, 160, 255, 0.1);">📊</div>
+                    <h3>Token Usage Tracking</h3>
+                    <p>Per-agent input/output token counts, run statistics, uptime tracking — all accessible via commands and the web panel.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(162, 155, 254, 0.1);">🔧</div>
+                    <h3>Dynamic Configuration</h3>
+                    <p>Override System Prompt, temperature, and model per-agent from the admin panel. No code change needed — hot reload applies instantly.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon" style="background: rgba(0, 210, 211, 0.1);">🐍</div>
+                    <h3>Python 3.9+</h3>
+                    <p>No bleeding-edge syntax required. Works on almost any server, any OS. Simple <code>pip install</code> setup.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Architecture -->
+    <section id="architecture">
+        <div class="container">
+            <div class="section-header">
+                <span class="tag">Architecture</span>
+                <h2>How It Works</h2>
+                <p>Each message goes through intelligent routing to the best team of agents.</p>
+            </div>
+
+            <div class="arch-wrapper">
+                <div class="arch-flow">
+                    <div class="arch-step">
+                        <div class="arch-step-num">1</div>
+                        <div>
+                            <h4>💬 User Message</h4>
+                            <p>User sends a message to the Telegram bot</p>
+                        </div>
+                    </div>
+                    <div class="arch-arrow">↓</div>
+
+                    <div class="arch-step">
+                        <div class="arch-step-num">2</div>
+                        <div>
+                            <h4>🧠 Supervisor Analyzes</h4>
+                            <p>LangGraph StateGraph routes the message to the optimal combination of specialist agents</p>
+                        </div>
+                    </div>
+                    <div class="arch-arrow">↓</div>
+
+                    <div class="arch-step">
+                        <div class="arch-step-num">3</div>
+                        <div>
+                            <h4>🤖 Agent Team Executes</h4>
+                            <p>Writer, Analyst, Researcher, Planner, and Critic work in parallel or sequence as needed</p>
+                        </div>
+                    </div>
+                    <div class="arch-arrow">↓</div>
+
+                    <div class="arch-step">
+                        <div class="arch-step-num">4</div>
+                        <div>
+                            <h4>✨ Supervisor Synthesizes</h4>
+                            <p>All agent outputs are combined into a single, coherent response</p>
+                        </div>
+                    </div>
+                    <div class="arch-arrow">↓</div>
+
+                    <div class="arch-step">
+                        <div class="arch-step-num">5</div>
+                        <div>
+                            <h4>📤 Response Delivered</h4>
+                            <p>Final response sent back to the user in Telegram</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Agents -->
+    <section id="agents">
+        <div class="container">
+            <div class="section-header">
+                <span class="tag">Agents</span>
+                <h2>Meet The Team</h2>
+                <p>Each agent is a specialist. The Supervisor picks the right team for every request.</p>
+            </div>
+
+            <div class="agents-grid">
+                <div class="agent-card">
+                    <div class="agent-emoji">🧠</div>
+                    <h3>Supervisor</h3>
+                    <p>The brain. Analyzes requests and orchestrates the team.</p>
+                    <span class="tag-chip">Orchestrator</span>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-emoji">✍️</div>
+                    <h3>Writer</h3>
+                    <p>Creative writing, emails, stories, content generation.</p>
+                    <span class="tag-chip">Content</span>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-emoji">📊</div>
+                    <h3>Analyst</h3>
+                    <p>Data analysis, comparisons, evaluations, insights.</p>
+                    <span class="tag-chip">Analysis</span>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-emoji">🔬</div>
+                    <h3>Researcher</h3>
+                    <p>Deep research, fact-finding, information gathering.</p>
+                    <span class="tag-chip">Research</span>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-emoji">📋</div>
+                    <h3>Planner</h3>
+                    <p>Roadmaps, project planning, step-by-step breakdowns.</p>
+                    <span class="tag-chip">Planning</span>
+                </div>
+
+                <div class="agent-card">
+                    <div class="agent-emoji">🔍</div>
+                    <h3>Critic</h3>
+                    <p>Review, critique, and improve text and content.</p>
+                    <span class="tag-chip">Review</span>
+                </div>
+            </div>
+
+            <div class="code-example" style="margin-top: 40px;">
+                <div class="code-example-header">
+                    <span>🐍</span> agents/translator.py — Add your own agent in 30 seconds
+                </div>
+                <div class="code-example-body">
+<span class="comment-c"># Just drop this file — auto-discovered on next run</span>
+<span class="keyword">from</span> agents.base_agent <span class="keyword">import</span> <span class="class-name">BaseAgent</span>
+
+<span class="keyword">class</span> <span class="class-name">TranslatorAgent</span>(<span class="class-name">BaseAgent</span>):
+    <span class="attr">NAME</span>        = <span class="string">"translator"</span>
+    <span class="attr">ROLE</span>        = <span class="string">"Translator"</span>
+    <span class="attr">DESCRIPTION</span> = <span class="string">"Translates text between languages"</span>
+    <span class="attr">ICON</span>        = <span class="string">"🌐"</span>
+    <span class="attr">TEMPERATURE</span> = <span class="string">0.3</span>
+    <span class="attr">SYSTEM_PROMPT</span> = <span class="string">"You are an expert translator."</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Providers -->
+    <section id="providers">
+        <div class="container">
+            <div class="section-header">
+                <span class="tag">Providers</span>
+                <h2>Any AI Provider</h2>
+                <p>Works with any OpenAI-compatible endpoint. Switch at runtime without restart.</p>
+            </div>
+
+            <div class="providers-grid">
+                <div class="provider-chip">
+                    <div class="icon">🔥</div>
+                    Bynara Router
+                </div>
+                <div class="provider-chip">
+                    <div class="icon">🤖</div>
+                    OpenAI
+                </div>
+                <div class="provider-chip">
+                    <div class="icon">⚡</div>
+                    Groq
+                </div>
+                <div class="provider-chip">
+                    <div class="icon">🤝</div>
+                    Together AI
+                </div>
+                <div class="provider-chip">
+                    <div class="icon">🔀</div>
+                    OpenRouter
+                </div>
+                <div class="provider-chip">
+                    <div class="icon">🧠</div>
+                    Anthropic
+                </div>
+                <div class="provider-chip">
+                    <div class="icon">💎</div>
+                    Google Gemini
+                </div>
+                <div class="provider-chip">
+                    <div class="icon">🔧</div>
+                    Custom
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Quick Start -->
+    <section id="quickstart">
+        <div class="container">
+            <div class="section-header">
+                <span class="tag">Quick Start</span>
+                <h2>Up & Running in 3 Steps</h2>
+                <p>From clone to running bot in under 2 minutes.</p>
+            </div>
+
+            <div class="quickstart-steps">
+                <div class="qs-step">
+                    <div class="qs-num">1</div>
+                    <div class="qs-content">
+                        <h4>Clone the repository</h4>
+                        <div class="code-block">git clone https://github.com/m4tinbeigi-official/RickAgent.git<br>cd RickAgent</div>
+                    </div>
+                </div>
+
+                <div class="qs-step">
+                    <div class="qs-num">2</div>
+                    <div class="qs-content">
+                        <h4>Run the smart installer</h4>
+                        <div class="code-block">python3 install.py</div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">The installer picks your AI provider, tests your API key live, configures Telegram, and writes <code>.env</code> automatically.</p>
+                    </div>
+                </div>
+
+                <div class="qs-step">
+                    <div class="qs-num">3</div>
+                    <div class="qs-content">
+                        <h4>Start the bot + web panel</h4>
+                        <div class="code-block">python3 main.py</div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 8px;">Bot is ready on Telegram. Web panel at <code>http://localhost:8080</code></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bot Commands -->
+            <div style="margin-top: 60px;">
+                <h3 style="text-align: center; margin-bottom: 24px; font-size: 1.3rem;">🤖 Bot Commands</h3>
+                <table class="commands-table">
+                    <tr><td>/start</td><td>Welcome + team introduction</td></tr>
+                    <tr><td>/agents</td><td>List active agents with models and run counts</td></tr>
+                    <tr><td>/stats</td><td>System stats — uptime, token usage, top agents</td></tr>
+                    <tr><td>/panel</td><td>Web panel link</td></tr>
+                    <tr><td>/setprovider</td><td>Browse and switch AI providers at runtime</td></tr>
+                    <tr><td>/setprovider 2</td><td>Switch to provider #2 directly</td></tr>
+                    <tr><td>/clear</td><td>Clear conversation history for this chat</td></tr>
+                    <tr><td>/status</td><td>Current system configuration</td></tr>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- CTA -->
+    <section style="padding: 80px 0;">
+        <div class="container" style="text-align: center;">
+            <h2 style="font-size: 2.2rem; font-weight: 800; margin-bottom: 16px;">Ready to Build Your Agent Team?</h2>
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 32px;">Clone the repo, run the installer, and you're live.</p>
+            <div class="hero-buttons">
+                <a href="https://github.com/m4tinbeigi-official/RickAgent" class="btn btn-primary">⭐ Star on GitHub</a>
+                <a href="https://github.com/m4tinbeigi-official/RickAgent/fork" class="btn btn-secondary">🍴 Fork & Customize</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/m4tinbeigi-official/RickAgent">GitHub</a>
+                <a href="https://github.com/m4tinbeigi-official/RickAgent/issues">Issues</a>
+                <a href="https://github.com/m4tinbeigi-official/RickAgent/blob/main/LICENSE">MIT License</a>
+            </div>
+            <p>Built with ❤️ by <a href="https://github.com/m4tinbeigi-official">@m4tinbeigi-official</a></p>
+        </div>
+    </footer>
+</body>
+</html>
