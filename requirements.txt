@@ -1,0 +1,17 @@
+# ── Core AI / LangChain stack ─────────────────────────────────────────────
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-core>=0.3.0
+langgraph>=0.2.0
+langsmith>=0.1.0
+
+# ── Telegram ──────────────────────────────────────────────────────────────
+python-telegram-bot>=21.0.0
+
+# ── Web Panel ─────────────────────────────────────────────────────────────
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# ── Config / utilities ────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+pydantic>=2.0.0

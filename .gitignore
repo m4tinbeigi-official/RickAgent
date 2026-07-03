@@ -1,0 +1,40 @@
+# ── Secrets & config ──────────────────────────────────────────────────────────
+.env
+# admin.db stores provider API keys — never commit it
+admin.db
+*.db
+*.db-shm
+*.db-wal
+
+# ── Python ────────────────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+._*
+
+# ── IDEs ──────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+
+# ── project tools ─────────────────────────────────────────────────────────────
+.codebase-memory/
+codebase-memory-mcp/
